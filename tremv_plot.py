@@ -268,6 +268,29 @@ class guiPlotSlider(QtWidgets.QSlider):
         self.panel.view_offset = self.value()/self.maximum()
         self.panel.update()
 
+    def resizeEvent(self, e):
+        #NOTE: for some reason this hacky mess is necessary to get the slider handle to change size...
+        #Setja handle width relative við hversu mikið af 1440 við erum komin með
+        handle_width = (e.size().width()/1440) * e.size().width()
+        self.setStyleSheet(
+            """
+            QWidget {
+                height: 40px;
+            }
+            QSlider::groove:horizontal {
+                border: 1px solid;
+                margin: 0px;
+            }
+
+            QSlider::handle:horizontal {
+                background-color: black;
+                width: """ + str(handle_width) + """px;
+                height: 40px;
+                margin: -15px 0px;
+            }
+            """)
+        #TODO: make handle bar color dark grey
+
 def add_to_station(station, value):
     if(value > 0.0):
         value = abs((1000*math.log(abs(value))))
@@ -377,6 +400,8 @@ class acceptButton(QtWidgets.QPushButton):
 class configDialog(QtWidgets.QDialog):
     def __init__(self, station_names, filters, config_station_names, server_station_names, server_filters):
         QtWidgets.QDialog.__init__(self)
+        self.setStyleSheet("QWidget {font-size:9pt;} QLabel {font-size:9pt;}")
+
         self.layout = QtWidgets.QVBoxLayout()
         self.layout.addWidget(QtWidgets.QLabel("Select the stations from the right list that you wish to display(click on stations on the left to remove them):"))
         self.setModal(True)
@@ -461,6 +486,7 @@ class configDialog(QtWidgets.QDialog):
 class serverDialog(QtWidgets.QWidget):
     def __init__(self, config):
         QtWidgets.QWidget.__init__(self)
+        self.setStyleSheet("QWidget {font-size:8pt;}")
         self.config = config
 
         while(True):
