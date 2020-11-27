@@ -343,6 +343,7 @@ def write_tremvplot_config(filename, config):
 class confirmedListWidget(QtWidgets.QListWidget):
     def __init__(self):
         QtWidgets.QListWidget.__init__(self)
+        self.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove) 
 
     def Clicked(self, item):
         self.takeItem(self.currentRow())
