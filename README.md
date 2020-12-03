@@ -9,4 +9,4 @@ The y-scale on each plot is relative to the maximum value encountered for a give
 <p>
 
 This is a pre-release version, as some planned feature are yet to be implemented.
-Precompiled binaries for Windows and Linux can be downloaded from the [release page](https://github.com/tremv/tremv_plot/releases).
+Precompiled binaries for Windows, MacOS and Linux can be downloaded from the [release page](https://github.com/tremv/tremv_plot/releases).
