@@ -229,6 +229,7 @@ class guiRenderPanel(QtWidgets.QWidget):
                         value = 0.0
 
                     scale_factor = station.max_value - station.min_value
+                    #scale_factor = 2400
                     if(scale_factor == 0):
                         scale_factor = 1
 
