@@ -6,15 +6,27 @@
 			body {
 				margin: 0;
 			}
+
 			canvas {
+				/*
+				Það kemur eitthvað skrýtið aliasing þegar maður er með nearest neighbour
 				image-rendering: -moz-crisp-edges;
 				image-rendering: -webkit-crisp-edges;
-				image-rendering: pixelated;
 				image-rendering: crisp-edges;
+				image-rendering: pixelated;
+				*/
+				width: 1440px;
+			}
+
+			#container {
+				width: 1080px;
+				overflow: auto;
 			}
 		</style>
 	</head>
-	<canvas id="canvas">
-	</canvas>
-	<script src="plot.js"></script>
+	<div id="container">
+		<canvas id="canvas">
+		</canvas>
+	</div>
+	<script src="tremv_plot.js"></script>
 </html>

@@ -47,13 +47,35 @@
 	}
 
 	function render() {
-		context.canvas.width = 1440;
-		context.canvas.height = window.innerHeight;
-		stride = 1440.0/window.innerWidth * 3;
+		let canvas_width = 1440;
+		let canvas_height = window.innerHeight;
 
-		for(let i = 0; i < window.innerWidth; i++) {
-			drawLine(context, i * stride, 0, i * stride, values[i], "#FF0000", 1);
+		context.canvas.height = canvas_height;
+		context.canvas.width = canvas_width;
+
+		context.clearRect(0, 0, canvas_width, canvas_height);
+		context.transform(1, 0, 0, -1, 0, canvas_height);
+
+		let image = context.createImageData(canvas_width, canvas_height);
+
+		for(let y = 0; y < canvas_height; y++) {
+			for(let x = 0; x < canvas_width; x++) {
+				let index = canvas_width*y*4 + x*4;
+				if(x % 30 == 0) {
+					image.data[index] = 187;
+					image.data[index + 1] = 187;
+					image.data[index + 2] = 187;
+					image.data[index + 3] = 255;
+				}else if(x % 10 == 0) {
+					image.data[index] = 204;
+					image.data[index + 1] = 238;
+					image.data[index + 2] = 255;
+					image.data[index + 3] = 255;
+				}
+			}
 		}
+
+		context.putImageData(image, 0, 0);
 	}
 
 	render();
