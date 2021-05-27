@@ -35,6 +35,8 @@
 		context.fillStyle = prev_color;
 	}
 
+	//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
+	//https://stackoverflow.com/questions/8028864/using-nearest-neighbor-with-css-zoom-on-canvas-and-img
 	function drawText(context, text, x, y, font, size, color) {
 		let prev_font = context.font;
 		let prev_color = context.fillStyle;
