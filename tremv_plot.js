@@ -48,16 +48,17 @@
 
 	function render() {
 		let canvas_width = 1440;
-		let canvas_height = window.innerHeight;
+		let canvas_height = window.innerHeight-20;//20 is some arbritrary value to account for the scrollbar at the bottom??
 
 		context.canvas.height = canvas_height;
 		context.canvas.width = canvas_width;
 
 		context.clearRect(0, 0, canvas_width, canvas_height);
-		context.transform(1, 0, 0, -1, 0, canvas_height);
+		//context.transform(1, 0, 0, -1, 0, canvas_height);
 
 		let image = context.createImageData(canvas_width, canvas_height);
 
+		//þarf að gera eitthvað betra en að "handfilla" inn í minnið
 		for(let y = 0; y < canvas_height; y++) {
 			for(let x = 0; x < canvas_width; x++) {
 				let index = canvas_width*y*4 + x*4;
@@ -76,6 +77,14 @@
 		}
 
 		context.putImageData(image, 0, 0);
+		let str = "hello";
+		let str_font = "serif";
+		let str_size = 40;
+		let text_width = measureTextWidth(context, str, str_font, str_size);
+
+		drawText(context, str,  canvas_width/2.0 - text_width/2.0, 100, str_font, str_size, "#000000");
+		//get bætt við 0.5 á x til teikna 1 pixel
+		drawLine(context, canvas_width/2.0 + 0.5, 0, canvas_width/2.0 + 0.5, canvas_height, "#FF00FF", 1);
 	}
 
 	render();
