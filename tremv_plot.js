@@ -1,9 +1,19 @@
 (function() {
-	const canvas = document.getElementById("canvas");
-	const context = canvas.getContext("2d");
+	const main_canvas = document.getElementById("canvas");
+	const main_context = main_canvas.getContext("2d");
+	const plot_canvas = document.createElement("canvas");
+	const plot_context = plot_canvas.getContext("2d");
+
 	const stations = {};
 	const buffer_size = 1440;
 	const station_list = ["gri", "hrn", "sig", "hla", "gra", "lei", "bre", "hed", "gil", "dim", "ski", "gha", "kvo", "ren", "mel", "grs", "sva"];
+
+	const str_font = "Arial";
+	const str_size = 14;
+
+	let grid_height = canvas_height - 30;
+	let plot_count = Object.keys(stations).length;
+	let plot_height = grid_height/plot_count;
 
 	for(let i = 0; i < station_list.length; i++) {
 		let values = [];//TODO: this should be a ring buffer
@@ -35,8 +45,6 @@
 		context.fillStyle = prev_color;
 	}
 
-	//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
-	//https://stackoverflow.com/questions/8028864/using-nearest-neighbor-with-css-zoom-on-canvas-and-img
 	function drawText(context, text, x, y, font, size, color) {
 		let prev_font = context.font;
 		let prev_color = context.fillStyle;
@@ -60,30 +68,15 @@
 		return result;
 	}
 
-	//TODO: 
-	//	*	Re-render if the page dimnesions change and stuff
-	//	*	Display time a line where the cursor is and show the time next to it
-	//	*	Express the width of the canvas as a ratio of the page size, so something like 70% or something
-	function render() {
-		let canvas_width = buffer_size;
-		let canvas_height = window.innerHeight-20;//20 is some arbritrary value to account for the scrollbar at the bottom??
-
-		context.canvas.height = canvas_height;
-		context.canvas.width = canvas_width;
-
-		drawRect(context, 0, 0, canvas_width, canvas_height, "#FFFFFF");
-		//NOTE: This transform will flip the y-axis so it starts in the bottom left and goes up, but it flips the text vertically :(
-		//context.transform(1, 0, 0, -1, 0, canvas_height);
+	function producePlot(context, width, height) {
+		drawRect(context, 0, 0, width, height, "#FFFFFF");
 
 		//grid
-		let grid_height = canvas_height - 30;		
-		let str_font = "Arial";
-		let str_size = 14;
-
+		let grid_height = height - 30;
 		let plot_count = Object.keys(stations).length;
 		let plot_height = grid_height/plot_count;
 
-		for(let x = 0; x < canvas_width; x++) {
+		for(let x = 0; x < width; x++) {
 			if(x % 60 == 0) {
 				//the ~ operator is a bitwise NOT(meaning all bits will be flipped).
 				//A double NOT is a weird way to truncate the float in javascript
@@ -97,7 +90,7 @@
 				let text_width = measureTextWidth(context, str, str_font, str_size);
 				let text_x = x - text_width/2.0;
 
-				drawText(context, str, text_x, canvas_height-str_size/1.5, str_font, str_size, "#000000");
+				drawText(context, str, text_x, height-str_size/1.5, str_font, str_size, "#000000");
 			}
 
 			//Because of the way canvas rendering works, the 0.5 is here to get a pixel perfect line 
@@ -116,16 +109,71 @@
 				drawLine(context, line_x, plot_y0, line_x, plot_y0 - stations[station_list[i]][x]*(plot_height-10), color, 1);
 			}
 		}
+	}
 
-		//we can't do it this way because then the text wont move with the view when we scroll sideways
+	//update some dimension globals; resize and start up
+	function update() {
+		let canvas_width = buffer_size;
+		let canvas_height = window.innerHeight-20;//20 is some arbritrary value to account for the scrollbar at the bottom??
+
+		main_context.canvas.height = canvas_height;
+		main_context.canvas.width = canvas_width;
+		plot_context.canvas.height = canvas_height;
+		plot_context.canvas.width = canvas_width;
+	}
+
+	//TODO: 
+	//	*	Re-render if the page dimnesions change and stuff
+	//	*	Display time a line where the cursor is and show the time next to it
+	//	*	Express the width of the canvas as a ratio of the page size, so something like 70% or something
+	//	*	When we scroll, the text should follow. The plot could be written to a seperate buffer,
+	//		and then we could just write from it to the backbuffer and then draw the text...
+	//	*	Cut image from the left to the position of the scroll bar, so we don't get a scuffed image
+	//		when we open it in a new tab
+	function render(width, height) {
+		//þetta er í rauninni global breytur sem þarf að uppfæra
+		/*
+		*/
+
+		//https://www.html5rocks.com/en/tutorials/canvas/hidpi/
+		//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
+		//https://stackoverflow.com/questions/8028864/using-nearest-neighbor-with-css-zoom-on-canvas-and-img
+		/*
+		context.canvas.height = context.canvas.clientHeight*2;
+		context.canvas.width = context.canvas.clientWidth*2;
+		context.scale(2,2);
+		*/
+
+		producePlot(plot_context, canvas_width, canvas_height);
+		main_context.drawImage(plot_canvas, 0, 0);
+
+		//NOTE: þetta er að tveimur stöðum :(
+
 		for(let i = 0; i < plot_count; i++) {
-			drawText(context, station_list[i], 5, i * plot_height + plot_height/3, str_font, str_size, "#000000");
+			drawText(main_context, station_list[i], 5, i * plot_height + plot_height/3, str_font, str_size, "#000000");
 		}
 	}
 
 	render();
 
+	//render plot to buffer and re render the text on top
 	setInterval(function() {
 		render();
 	}, 1000 * 60);
+	
+	window.onresize = function(e) {
+		update();
+	}
+
+	//re render plot and the text on top
+	document.getElementById("plot_container").onscroll = function(e) {
+		/*
+		main_context.drawImage(plot_canvas, 0, 0);
+		let plot_count = Object.keys(stations).length;
+		for(let i = 0; i < plot_count; i++) {
+			let x = e.target.scrollLeft + 5;		
+			drawText(main_context, station_list[i], x, i * 50 + 50/3, "Arial", 14, "#000000");
+		}
+		*/
+	};
 })();
