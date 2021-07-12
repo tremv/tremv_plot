@@ -2,33 +2,6 @@
 	<head>
 		<meta charset="UTF-8">
 		<title>Tremor Plotting</title>
-		<style>
-			body {
-				margin: 0;
-			}
-
-			canvas {
-				/*
-				Það kemur eitthvað skrýtið aliasing þegar maður er með nearest neighbour
-				image-rendering: -moz-crisp-edges;
-				image-rendering: -webkit-crisp-edges;
-				image-rendering: crisp-edges;
-				image-rendering: pixelated;
-				*/
-				width: 1440px;
-			}
-
-			/*
-			TODO: sýna scrollbar alltaf
-			*/
-			#plot_container {
-				/*
-				width: 70%;
-				*/
-				width: 1080px;
-				overflow-x: scroll;
-			}
-		</style>
 	</head>
 	<div id="plot_container">
 		<canvas id="canvas">
