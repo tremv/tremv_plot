@@ -2,24 +2,13 @@ body {
 	margin: 0;
 }
 
-canvas {
-	/*
-	Það kemur eitthvað skrýtið aliasing þegar maður er með nearest neighbour
-	image-rendering: -moz-crisp-edges;
-	image-rendering: -webkit-crisp-edges;
-	image-rendering: crisp-edges;
-	image-rendering: pixelated;
-	*/
-	width: 1440px;
+#plot_container {
+	display: flex;
+	flex-flow: row;
 }
 
-/*
-TODO: sýna scrollbar alltaf
-*/
-#plot_container {
-	/*
-	width: 70%;
-	*/
-	width: 1080px;
+.plot {
+	border-right: 1px solid;
+	max-width: 1440px;
 	overflow-x: scroll;
 }
