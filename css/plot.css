@@ -1,14 +1,108 @@
 body {
 	margin: 0;
+	font-family: Arial;
+}
+
+#main_container {
+	display: flex;
+}
+
+#control_container {
+	max-width: 300px;
+	min-width: 300px;
+	padding: 0px 10px;
+	background-color: #F2F2F8;
+}
+
+.control_section {
+	background-color: white;
+	border: none;
+	border-radius: 8px;
+	margin-top: 10px;
+}
+
+.control_section legend {
+	font-weight: bold;
+}
+
+#station_selection_container {
+	position: relative;
+}
+
+#station_selection_selector {
+	border: 1px solid;
+	display: flex;
+	flex-flow: row wrap;
+}
+
+.station_selection_tag {
+	cursor: pointer;
+	background-color: #C5E6A6;
+	margin: 5;
+	padding: 5;
+	border-radius: 3px;
+}
+
+.station_selection_tag:hover {
+	background-color: #A5C686;
+}
+
+#station_selection_textbox {
+	flex-grow: 1;
+	order: 1;
+	margin: 5;
+	border: none;
+}
+
+#station_selection_textbox:focus {
+	outline: none;
+}
+
+#station_selection_list {
+	position: absolute;
+	width: 100%;
+	/*TODO: make the height responsive*/
+	max-height: 300px;
+	display: none;
+	flex-direction: column;
+	overflow-y: auto;
+	background-color: white;
+	/*TODO: add a black border that is within the size of the element(border: 1px solid doesn't do it)*/
+}
+
+.station_selection_selectable {
+	background-color: white;
+	padding-top: 5;
+	padding-bottom: 5;
+}
+
+.station_selection_selectable:hover {
+	background-color: #CFEAFE;
 }
 
 #plot_container {
 	display: flex;
 	flex-flow: row;
+	overflow: auto;
 }
 
 .plot {
 	border-right: 1px solid;
+	overflow: auto;
+}
+
+.plot_title {
+	display: flex;
+	justify-content: space-between;
+	font-size: 14px;
+	font-weight: bold;
+	padding-left: 5px;
+	padding-right: 5px;
+	padding-top: 8px;
+	padding-bottom: 8px;
+}
+
+.plot_view {
 	max-width: 1440px;
 	overflow-x: scroll;
 }

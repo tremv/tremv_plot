@@ -5,7 +5,40 @@
 		<link rel="stylesheet" href="css/plot.css">
 	</head>
 
-	<div id="plot_container">
+	<div id="main_container">
+		<div id="plot_container">
+		</div>
+
+		<div id="control_container">
+			<form>
+				<fieldset class="control_section">
+					<legend>Stations</legend>
+					<div id="station_selection_container">
+						<p>
+							<input type="button" value="Select all stations" id="station_selection_button_all">
+							<input type="button" value="Remove all stations" id="station_selection_button_none">
+						</p>
+
+						<div id="station_selection_selector">
+							<input id="station_selection_textbox" type="text" value="">
+						</div>
+
+						<div id="station_selection_list">
+						</div>
+					</div>
+				</fieldset>
+
+				<fieldset class="control_section">
+					<legend>Filters</legend>
+					<p id="filter_selection">
+					</p>
+				</fieldset>
+
+				<p>
+					<input type="submit" id="controls_submit_button" value="Draw">
+				</p>
+			</form>
+		</div>
 	</div>
 
 	<script src="js/plot.js"></script>
