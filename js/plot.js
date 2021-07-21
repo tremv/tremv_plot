@@ -131,6 +131,7 @@
 			this.title = document.createElement("div");//we might for example need to change the label for the date
 			this.visible = true;
 			this.minute_offset = 0;
+			this.min_trace_height = 2160/83; //the min height of an individual station plot. Just based on what they plot in the monitoring room
 
 			for(let i = 0; i < server_stations.length; i++) {
 				this.data[server_stations[i]] = new RingBuffer(buffer_size);
@@ -169,8 +170,6 @@
 		addPoint(station_name, value) {
 			let value_abs = Math.abs(value);
 			this.data[station_name].push(value_abs);
-			this.minute_offset++;
-			if(this.minute_offset == this.buffer_size) this.minute_offset = 0;
 
 			//TODO: Math.abs?
 			if(value_abs > this.data_max[station_name]) this.data_max[station_name] = value_abs;
@@ -208,14 +207,22 @@
 			let title_div_height = this.title.clientHeight;
 			let scrollbar_height = this.view.offsetHeight - this.canvas.clientHeight;
 
+			let grid_top_margin = 30;
 			let height = window.innerHeight - (scrollbar_height + title_div_height);
 			this.canvas.height = height;
 			this.canvas.width = width;
 
 			//grid
-			let grid_height = height - 30;
+			let grid_height = height - grid_top_margin;
 			let plot_count = station_names.length;
-			let plot_height = grid_height/plot_count;
+			let trace_height = grid_height/plot_count;
+
+			if(trace_height < this.min_trace_height) {
+				trace_height = this.min_trace_height;
+				grid_height = this.min_trace_height * plot_count;
+				height = grid_height + grid_top_margin;
+				this.canvas.height = height;
+			}
 
 			if(draw_cached == false) {
 				this.back_canvas.height = height;
@@ -224,11 +231,14 @@
 				drawRect(back_context, 0, 0, width, height, "#FFFFFF");
 
 				for(let x = 0; x < width; x++) {
-					if(x % 60 == 0) {
+					if((x + this.minute_offset) % 60 == 0) {
 						//the ~ operator is a bitwise NOT(meaning all bits will be flipped).
 						//A double NOT is a weird way to truncate the float in javascript
 						//which is essentially the same as int() in python
-						let hour = (~~(x / 60)) % 24;
+						let draw_minute = this.minute_offset + x;
+						if(draw_minute >= 60*24) draw_minute -= 60*24;
+
+						let hour = (~~(draw_minute / 60)) % 24;
 						let str = "";
 
 						if(hour < 10) str += "0";
@@ -244,22 +254,27 @@
 					let line_x = x + 0.5;
 					let grid_y1 = grid_height + 6;
 
-					if(x % 30 == 0) {
+					if((x + this.minute_offset) % 30 == 0) {
 						drawLine(back_context, line_x, 0, line_x, grid_y1, "#AAAAAA", 1);
-					}else if(x % 10 == 0) {
+					}else if((x + this.minute_offset) % 10 == 0) {
 						drawLine(back_context, line_x, 0, line_x, grid_y1, "#CCEEFF", 1);
 					}
 
 					for(let i = 0; i < plot_count; i++) {
 						let name = station_names[i];
-						let value = this.data[name].get(x);
+						let value = 0.0;
+						try {
+							value = this.data[name].get(x);
+						}catch(e) {
+							console.log(e + " " + x + ": " + this.data[name].length);
+						}
 
 						if(value > 0) {
 							value -= this.data_min[name];
 							let scale_factor = this.data_max[name] - this.data_min[name];
 
-							let plot_y0 = plot_height * i + plot_height;
-							let plot_y1 = plot_y0 - (value/scale_factor * plot_height);
+							let plot_y0 = trace_height * i + trace_height;
+							let plot_y1 = plot_y0 - (value/scale_factor * trace_height);
 
 							let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
 							drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
@@ -272,11 +287,14 @@
 				console.log("Plot updated.");
 			}
 
+			//TODO:	teikna bara þann part sem hefur að geyma plottið, ekki time labelin.
+			//		Það er hægt að endurteikna time label-in
 			main_context.drawImage(this.back_canvas, 0, 0, width, height);
 
+			//TODO: þarf örugglega að bæta við einhverju margin svo að textinn sé align-aður rétt
 			for(let i = 0; i < plot_count; i++) {
 				let x = this.view.scrollLeft + 5;
-				let y = i * plot_height + plot_height/3;
+				let y = i * trace_height + trace_height/3;
 				let width = measureTextWidth(back_context, station_names[i], str_font, str_size);
 				let height = str_size;
 				drawText(main_context, station_names[i], x, y, str_font, str_size, "#000000");
@@ -387,6 +405,7 @@
 		cb.setAttribute("id", id);
 		cb.setAttribute("type", "checkbox");
 		cb.setAttribute("name", filter_checkbox_group_name);
+		cb.checked = true;
 
 		l.setAttribute("for", id);
 		l.innerHTML = (filters[i][0].toFixed(1)) + " - " + (filters[i][1].toFixed(1));
@@ -472,12 +491,8 @@
 			plot.draw(true);
 		}
 
+		plot.draw();
 		plots.push(plot);
-	}
-
-	//part of initialization
-	for(let i = 0; i < plots.length; i++) {
-		plots[i].draw();
 	}
 
 	const form = document.querySelector("form");
@@ -636,16 +651,36 @@
 		}
 
 		for(let i = 0; i < plots.length; i++) {
+			plots[i].minute_offset++;//TODO: this feels weird
+			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
 			plots[i].draw();
 		}
 	}, 1000 * 60);
 	*/
+	/*
+	setInterval(async function() {
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].minute_offset++;//TODO: this feels weird
+			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
+			plots[i].draw();
+		}
+	}, 1000/60);
+	*/
 
 	document.onkeydown = function(e) {
 		if(e.code === "Enter") {
+			/*
 			for(let i = 0; i < plots.length; i++) {
+				for(let j = 0; j < server_stations.length; j++) {
+					plots[i].addPoint(server_stations[j], Math.random() * 2000);
+				}
+
+				plots[i].minute_offset++;
+				if(plots[i].minute_offset == plots[i].buffer_size) plots[i].minute_offset = 0;
+
 				plots[i].draw();
 			}
+			*/
 		}
 	}
 
