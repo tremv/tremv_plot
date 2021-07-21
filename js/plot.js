@@ -283,8 +283,6 @@
 						}
 					}
 				}
-
-				console.log("Plot updated.");
 			}
 
 			//TODO:	teikna bara þann part sem hefur að geyma plottið, ekki time labelin.
@@ -491,10 +489,93 @@
 			plot.draw(true);
 		}
 
+		//TODO: this is pretty hacky
+		plot.canvas.onmousemove = function(e) {
+			plot.draw(true);
+			let context = plot.canvas.getContext("2d");
+			let line_x = e.layerX + 0.5;
+			drawLine(context, line_x, 0, line_x, plot.canvas.height, "#000000", 1);
+			let square_height = 25;
+			drawRect(context, line_x, e.layerY-square_height, 50, square_height, "#FFFA64");
+
+			let min_of_day = e.layerX + plot.minute_offset;
+			if(min_of_day > plot.buffer_size) min_of_day -= plot.buffer_size;
+
+			let hour = ~~(min_of_day / 60);
+			let minute = min_of_day % 60;
+			let hour_str = "";
+			let minute_str = "";
+
+			if(hour < 10) hour_str += "0";
+			if(minute < 10) minute_str += "0";
+			hour_str += hour;
+			minute_str += minute;
+
+			drawText(context, hour_str + ":" + minute_str, e.layerX+7, e.layerY-7, str_font, str_size, "#000000");
+		}
+
+		plot.canvas.onmouseout = function(e) {
+			plot.draw(true);
+		}
+
 		plot.draw();
 		plots.push(plot);
 	}
 
+	//render plot to buffer and re render the text on top
+	async function updatePlots() {
+		let selected_filters = [];
+
+		for(let i = 0; i < filter_checkboxes.length; i++) {
+			let checked = filter_checkboxes[i].checked;
+			if(checked) {
+				selected_filters.push(filters[i]);
+			}
+
+			//TODO: setVisibility ætti að gerast þegar checkboxið sjálft er hakað/afhakað
+			//plots[i].setVisibility(checked);
+		}
+
+
+		query = {};
+		query["station_names"] = server_stations;//TODO: maybe consider just fetching the selected once?
+		query["filters"] = selected_filters;
+		query["do_log_transform"] = true;
+
+		const latest_data = await fetch(base_url + "/api/latest/", 
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify(query)
+			}
+		).then(function(r) {
+			return r.json();
+		});
+
+		for(let i = 0; i < plots.length; i++) {
+			for(let j = 0; j < server_stations.length; j++) {
+				let value = 0.0;
+
+				if(latest_data) {
+					value = latest_data["data"][i]["stations"][server_stations[j]];
+				}
+
+				plots[i].addPoint(server_stations[j], value);
+			}
+		}
+
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].minute_offset++;//TODO: this feels weird
+			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
+			plots[i].draw();
+		}
+
+		console.log("plots updated");
+	}
+
+	let update_interval_id = 0;
 	const form = document.querySelector("form");
 
 	form.onsubmit = async function(e) {
@@ -604,83 +685,25 @@
 		for(let i = 0; i < plots.length; i++) {
 			plots[i].view.scrollLeft = buffer_size;
 		}
+
+		if(update_interval_id) clearInterval(update_interval_id);
+		update_interval_id = setInterval(updatePlots, 1000*60);
 	}
 
 
-	//render plot to buffer and re render the text on top
-	/*
-	setInterval(async function() {
-		let selected_filters = [];
-
-		for(let i = 0; i < filter_checkboxes.length; i++) {
-			let checked = filter_checkboxes[i].checked;
-			if(checked) {
-				selected_filters.push(filters[i]);
-			}
-
-			plots[i].setVisibility(checked);
-		}
-
-		query = {};
-		query["station_names"] = server_stations;
-		query["filters"] = filters;
-		query["do_log_transform"] = true;
-
-		const latest_data = await fetch(base_url + "/api/latest/", 
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify(query)
-			}
-		).then(function(r) {
-			return r.json();
-		});
-
-		for(let i = 0; i < plots.length; i++) {
-			for(let j = 0; j < server_stations.length; j++) {
-				let value = 0.0;
-
-				if(latest_data) {
-					value = latest_data["data"][i]["stations"][server_stations[j]];
-				}
-
-				plots[i].addPoint(server_stations[j], value);
-			}
-		}
-
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset++;//TODO: this feels weird
-			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
-			plots[i].draw();
-		}
-	}, 1000 * 60);
-	*/
-	/*
-	setInterval(async function() {
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset++;//TODO: this feels weird
-			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
-			plots[i].draw();
-		}
-	}, 1000/60);
-	*/
 
 	document.onkeydown = function(e) {
-		if(e.code === "Enter") {
-			/*
-			for(let i = 0; i < plots.length; i++) {
-				for(let j = 0; j < server_stations.length; j++) {
-					plots[i].addPoint(server_stations[j], Math.random() * 2000);
+		//TODO: just a quick way to hide the controls. Provide a UI element to hide/unhide them
+		if(e.code === "ShiftLeft") {
+			let controls = document.getElementById("control_container");
+			if(controls.style.display === "none") {
+				controls.style.display = "block";
+				for(let i = 0; i < plots.length; i++) {
+					plots[i].view.scrollLeft = buffer_size;
 				}
-
-				plots[i].minute_offset++;
-				if(plots[i].minute_offset == plots[i].buffer_size) plots[i].minute_offset = 0;
-
-				plots[i].draw();
+			}else {
+				controls.style.display = "none";
 			}
-			*/
 		}
 	}
 
