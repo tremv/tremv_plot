@@ -9,6 +9,7 @@
 		return (Math.abs(x - y) < eps);
 	}
 
+	//a container with a fixed size that overwrites elements when there is no space left
 	class RingBuffer {
 		constructor(size) {
 			this.size = size;
@@ -131,7 +132,8 @@
 			this.title = document.createElement("div");//we might for example need to change the label for the date
 			this.visible = true;
 			this.minute_offset = 0;
-			this.min_trace_height = 2160/83; //the min height of an individual station plot. Just based on what they plot in the monitoring room
+			this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
+			this.scaling_factor = 1;
 
 			for(let i = 0; i < server_stations.length; i++) {
 				this.data[server_stations[i]] = new RingBuffer(buffer_size);
@@ -188,6 +190,7 @@
 		//		when we open it in a new tab
 		//when station data is null, we just draw the image again
 
+		//make the trace offset thing a parameter
 		draw(draw_cached=false) {
 			if(this.visibile == false) return;
 			//https://www.html5rocks.com/en/tutorials/canvas/hidpi/
@@ -208,21 +211,27 @@
 			let scrollbar_height = this.view.offsetHeight - this.canvas.clientHeight;
 
 			let grid_top_margin = 30;
-			let height = window.innerHeight - (scrollbar_height + title_div_height);
-			this.canvas.height = height;
-			this.canvas.width = width;
 
 			//grid
-			let grid_height = height - grid_top_margin;
 			let plot_count = station_names.length;
-			let trace_height = grid_height/plot_count;
+			let trace_height = this.default_min_trace_height;
 
-			if(trace_height < this.min_trace_height) {
-				trace_height = this.min_trace_height;
-				grid_height = this.min_trace_height * plot_count;
-				height = grid_height + grid_top_margin;
-				this.canvas.height = height;
+			let grid_height = trace_height * plot_count;
+			let height = grid_height + grid_top_margin;
+			let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);
+
+			if(screen_fill_height/plot_count > trace_height) {
+				height = screen_fill_height;
+				grid_height = height - grid_top_margin;
+				trace_height = grid_height/plot_count;
 			}
+
+			height *= this.scaling_factor;
+			grid_height *= this.scaling_factor;
+			trace_height *= this.scaling_factor;
+
+			this.canvas.height = height;
+			this.canvas.width = width;
 
 			if(draw_cached == false) {
 				this.back_canvas.height = height;
@@ -376,6 +385,9 @@
 	const station_selection_button_none = document.getElementById("station_selection_button_none");
 	const filter_checkbox_group_name = "selected_filter";
 
+	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
+	ui_plot_scaling_slider.value = 1;
+
 	const buffer_size = 1440;
 	const str_font = "Arial";
 	const str_size = 14;
@@ -415,12 +427,53 @@
 	}
 
 	const filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
-	//TODO: date label!
-	/*
+
+	//initialize plots
+	for(let i = 0; i < filters.length; i++) {
+		let plot = new Plot(buffer_size, plot_container, server_stations, selected_stations, filters[i]);
+
+		//TODO: maybe there is a better way to do this
+		plot.view.onscroll = function(e) {
+			plot.draw(true);
+		}
+
+		//TODO: this is pretty hacky
+		plot.canvas.onmousemove = function(e) {
+			plot.draw(true);
+			let context = plot.canvas.getContext("2d");
+			let line_x = e.layerX + 0.5;
+			drawLine(context, line_x, 0, line_x, plot.canvas.height, "#000000", 1);
+			let square_height = 25;
+			drawRect(context, line_x, e.layerY-square_height, 50, square_height, "#FFFA64");
+
+			let min_of_day = e.layerX + plot.minute_offset;
+			if(min_of_day > plot.buffer_size) min_of_day -= plot.buffer_size;
+
+			let hour = ~~(min_of_day / 60);
+			let minute = min_of_day % 60;
+			let hour_str = "";
+			let minute_str = "";
+
+			if(hour < 10) hour_str += "0";
+			if(minute < 10) minute_str += "0";
+			hour_str += hour;
+			minute_str += minute;
+
+			drawText(context, hour_str + ":" + minute_str, e.layerX+7, e.layerY-7, str_font, str_size, "#000000");
+		}
+
+		plot.canvas.onmouseout = function(e) {
+			plot.draw(true);
+		}
+
+		plot.draw();
+		plots.push(plot);
+	}
+
 	let date_label = document.createElement("div");
-	date_label.innerHTML = range_end.getDay() + "/" + range_end.getMonth() + "/" + range_end.getFullYear();
+	let starttime = new Date();
+	date_label.innerHTML = starttime.getDate() + "/" + (starttime.getMonth()+1) + "/" + starttime.getFullYear();
 	plots[plots.length-1].title.appendChild(date_label);
-	*/
 
 	generateSelectionList(server_stations, selected_stations, station_selection_selector, station_selection_list);
 
@@ -480,46 +533,27 @@
 		station_selection_list.style.display = "flex";
 		station_selection_list.scrollTop = 0;
 	}
-
-	for(let i = 0; i < filters.length; i++) {
-		let plot = new Plot(buffer_size, plot_container, server_stations, selected_stations, filters[i]);
-
-		//TODO: maybe there is a better way to do this
-		plot.view.onscroll = function(e) {
-			plot.draw(true);
+	
+	function updatePlotScaling(plots, value, draw_cached=false) {
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].scaling_factor = value;
+			plots[i].draw(draw_cached);
 		}
+	}
 
-		//TODO: this is pretty hacky
-		plot.canvas.onmousemove = function(e) {
-			plot.draw(true);
-			let context = plot.canvas.getContext("2d");
-			let line_x = e.layerX + 0.5;
-			drawLine(context, line_x, 0, line_x, plot.canvas.height, "#000000", 1);
-			let square_height = 25;
-			drawRect(context, line_x, e.layerY-square_height, 50, square_height, "#FFFA64");
+	ui_plot_scaling_slider.oninput = function(e) {
+		let value = e.target.value;
+		updatePlotScaling(plots, value, true);
+	}
 
-			let min_of_day = e.layerX + plot.minute_offset;
-			if(min_of_day > plot.buffer_size) min_of_day -= plot.buffer_size;
+	ui_plot_scaling_slider.onchange = function(e) {
+		let value = e.target.value;
+		updatePlotScaling(plots, value);
+	}
 
-			let hour = ~~(min_of_day / 60);
-			let minute = min_of_day % 60;
-			let hour_str = "";
-			let minute_str = "";
-
-			if(hour < 10) hour_str += "0";
-			if(minute < 10) minute_str += "0";
-			hour_str += hour;
-			minute_str += minute;
-
-			drawText(context, hour_str + ":" + minute_str, e.layerX+7, e.layerY-7, str_font, str_size, "#000000");
-		}
-
-		plot.canvas.onmouseout = function(e) {
-			plot.draw(true);
-		}
-
-		plot.draw();
-		plots.push(plot);
+	document.getElementById("ui_reset_button").onclick = function(e) {
+		updatePlotScaling(plots, 1);
+		ui_plot_scaling_slider.value = 1;
 	}
 
 	//render plot to buffer and re render the text on top
@@ -572,7 +606,11 @@
 			plots[i].draw();
 		}
 
-		console.log("plots updated");
+		let minute_now = new Date();
+		let minute_before = new Date(Date.now() - 1000*60);
+		if(minute_now.getDate() !== minute_before.getDate()) {
+			date_label.innerHTML = minute_now.getDate() + "/" + (minute_now.getMonth()+1) + "/" + minute_now.getFullYear();
+		}
 	}
 
 	let update_interval_id = 0;
@@ -581,7 +619,6 @@
 	form.onsubmit = async function(e) {
 		e.preventDefault();
 
-		//TODO: some of this stuff shouldn't be const because we might add or remove filters etc. on the fly
 		const range_end = new Date(Date.now() - 1000*60);//get the current timestamp minus 1 min
 		const day_in_msec = 60*60*24 * 1000;
 		const range_start = new Date(range_end - day_in_msec);
@@ -694,7 +731,7 @@
 
 	document.onkeydown = function(e) {
 		//TODO: just a quick way to hide the controls. Provide a UI element to hide/unhide them
-		if(e.code === "ShiftLeft") {
+		if(e.code === "ShiftRight") {
 			let controls = document.getElementById("control_container");
 			if(controls.style.display === "none") {
 				controls.style.display = "block";

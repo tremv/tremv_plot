@@ -25,6 +25,10 @@ body {
 	font-weight: bold;
 }
 
+#ui_plot_scaling_slider {
+	width: 100%;
+}
+
 #station_selection_container {
 	position: relative;
 }
