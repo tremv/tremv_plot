@@ -309,7 +309,6 @@
 		}
 	}
 
-
 	//station selection functions
 	function generateSelectionList(server_stations, selected_stations, selector_div, list_div) {
 		while(list_div.children.length) {
@@ -324,7 +323,7 @@
 				option.value = name;//NOTE: we might want the innerHTML to be whatever so this is safer
 				option.classList.add("station_selection_selectable");
 				option.onclick = function() {
-					addStation(server_stations, selected_stations, selector_div, list_div, option.innerHTML);
+					addStation(server_stations, selected_stations, selector_div, list_div, option.value);
 					station_selection_textbox.value = "";
 				};
 
@@ -556,69 +555,29 @@
 		ui_plot_scaling_slider.value = 1;
 	}
 
-	//render plot to buffer and re render the text on top
-	async function updatePlots() {
-		let selected_filters = [];
+	//TODO: move this
+	let update_interval_id = 0;//TODO place this somewhere nice
+	const form = document.querySelector("form");
+	//TODO: move this
 
-		for(let i = 0; i < filter_checkboxes.length; i++) {
-			let checked = filter_checkboxes[i].checked;
-			if(checked) {
-				selected_filters.push(filters[i]);
-			}
+	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+		let query_string = window.location.search;
+		let search_params = new URLSearchParams(query_string);
 
-			//TODO: setVisibility ætti að gerast þegar checkboxið sjálft er hakað/afhakað
-			//plots[i].setVisibility(checked);
-		}
+		if(search_params.has("stations")) {
+			let stations = decodeURI(search_params.get("stations")).split(",");
 
-
-		query = {};
-		query["station_names"] = server_stations;//TODO: maybe consider just fetching the selected once?
-		query["filters"] = selected_filters;
-		query["do_log_transform"] = true;
-
-		const latest_data = await fetch(base_url + "/api/latest/", 
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify(query)
-			}
-		).then(function(r) {
-			return r.json();
-		});
-
-		for(let i = 0; i < plots.length; i++) {
-			for(let j = 0; j < server_stations.length; j++) {
-				let value = 0.0;
-
-				if(latest_data) {
-					value = latest_data["data"][i]["stations"][server_stations[j]];
+			for(let i = 0; i < stations.length; i++) {
+				if(server_stations.includes(stations[i])) {
+					addStation(server_stations, selected_stations, station_selection_selector, station_selection_list, stations[i]);
 				}
-
-				plots[i].addPoint(server_stations[j], value);
 			}
-		}
 
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset++;//TODO: this feels weird
-			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
-			plots[i].draw();
-		}
-
-		let minute_now = new Date();
-		let minute_before = new Date(Date.now() - 1000*60);
-		if(minute_now.getDate() !== minute_before.getDate()) {
-			date_label.innerHTML = minute_now.getDate() + "/" + (minute_now.getMonth()+1) + "/" + minute_now.getFullYear();
+			backfillPlots();
 		}
 	}
 
-	let update_interval_id = 0;
-	const form = document.querySelector("form");
-
-	form.onsubmit = async function(e) {
-		e.preventDefault();
-
+	async function backfillPlots() {
 		const range_end = new Date(Date.now() - 1000*60);//get the current timestamp minus 1 min
 		const day_in_msec = 60*60*24 * 1000;
 		const range_start = new Date(range_end - day_in_msec);
@@ -725,6 +684,85 @@
 
 		if(update_interval_id) clearInterval(update_interval_id);
 		update_interval_id = setInterval(updatePlots, 1000*60);
+	}
+
+	//render plot to buffer and re render the text on top
+	async function updatePlots() {
+		let selected_filters = [];
+
+		for(let i = 0; i < filter_checkboxes.length; i++) {
+			let checked = filter_checkboxes[i].checked;
+			if(checked) {
+				selected_filters.push(filters[i]);
+			}
+
+			//TODO: setVisibility ætti að gerast þegar checkboxið sjálft er hakað/afhakað
+			//plots[i].setVisibility(checked);
+		}
+
+		query = {};
+		query["station_names"] = server_stations;//TODO: maybe consider just fetching the selected once?
+		query["filters"] = selected_filters;
+		query["do_log_transform"] = true;
+
+		const latest_data = await fetch(base_url + "/api/latest/", 
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify(query)
+			}
+		).then(function(r) {
+			return r.json();
+		});
+
+		for(let i = 0; i < plots.length; i++) {
+			for(let j = 0; j < server_stations.length; j++) {
+				let value = 0.0;
+
+				if(latest_data) {
+					value = latest_data["data"][i]["stations"][server_stations[j]];
+				}
+
+				plots[i].addPoint(server_stations[j], value);
+			}
+		}
+
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].minute_offset++;//TODO: this feels weird
+			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
+			plots[i].draw();
+		}
+
+		let minute_now = new Date();
+		let minute_before = new Date(Date.now() - 1000*60);
+		if(minute_now.getDate() !== minute_before.getDate()) {
+			date_label.innerHTML = minute_now.getDate() + "/" + (minute_now.getMonth()+1) + "/" + minute_now.getFullYear();
+		}
+	}
+
+	form.onsubmit = async function(e) {
+		e.preventDefault();
+
+		//TODO: I am not sure how you would encode the filters in the query string...
+		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+			let query_string = window.location.search;
+			let search_params = new URLSearchParams(query_string);
+			let stations_str = "";
+
+			for(let i = 0; i < selected_stations.length; i++) {
+				stations_str += selected_stations[i];
+				if(i !== selected_stations.length-1) {
+					stations_str += ",";
+				}
+			}
+
+			search_params.set("stations", stations_str);
+			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
+		}
+
+		backfillPlots();
 	}
 
 
