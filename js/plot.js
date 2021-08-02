@@ -154,6 +154,7 @@
 
 			this.plot_div.appendChild(this.title);
 			this.plot_div.appendChild(this.view);
+			this.plot_div.appendChild(document.createElement("div"));
 
 			div_container.appendChild(this.plot_div);
 		}
@@ -301,7 +302,7 @@
 			//TODO: þarf örugglega að bæta við einhverju margin svo að textinn sé align-aður rétt
 			for(let i = 0; i < plot_count; i++) {
 				let x = this.view.scrollLeft + 5;
-				let y = i * trace_height + trace_height/3;
+				let y = i * trace_height + str_size;
 				let width = measureTextWidth(back_context, station_names[i], str_font, str_size);
 				let height = str_size;
 				drawText(main_context, station_names[i], x, y, str_font, str_size, "#000000");
@@ -440,10 +441,24 @@
 		plot.canvas.onmousemove = function(e) {
 			plot.draw(true);
 			let context = plot.canvas.getContext("2d");
-			let line_x = e.layerX + 0.5;
-			drawLine(context, line_x, 0, line_x, plot.canvas.height, "#000000", 1);
+			let x = e.layerX + 0.5;
+			drawLine(context, x, 0, x, plot.canvas.height, "#000000", 1);
 			let square_height = 25;
-			drawRect(context, line_x, e.layerY-square_height, 50, square_height, "#FFFA64");
+			let square_width = 50;
+
+			let plot_count = 0;
+
+			for(let j = 0; j < plot_container.childElementCount; j++) {
+				plot_count += (plot_container.children[j].style.display === "none") ? 0 : 1;
+			}
+
+			let plot_width = plot_container.clientWidth/plot_count;
+
+			if(e.clientX + square_width > e.target.getBoundingClientRect().right) {
+				x -= e.clientX + square_width - e.target.getBoundingClientRect().right;
+			}
+
+			drawRect(context, x, e.layerY-square_height, square_width, square_height, "#FFFA64");
 
 			let min_of_day = e.layerX + plot.minute_offset;
 			if(min_of_day > plot.buffer_size) min_of_day -= plot.buffer_size;
@@ -457,8 +472,9 @@
 			if(minute < 10) minute_str += "0";
 			hour_str += hour;
 			minute_str += minute;
+			let text_offset = 7;
 
-			drawText(context, hour_str + ":" + minute_str, e.layerX+7, e.layerY-7, str_font, str_size, "#000000");
+			drawText(context, hour_str + ":" + minute_str, x+text_offset, e.layerY-text_offset, str_font, str_size, "#000000");
 		}
 
 		plot.canvas.onmouseout = function(e) {

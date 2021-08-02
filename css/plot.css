@@ -91,12 +91,15 @@ body {
 }
 
 .plot {
+	position: relative;
 	border-right: 1px solid;
 	overflow: auto;
 }
 
 .plot_title {
 	display: flex;
+	position: sticky;
+	background-color: #FFFFFF;
 	justify-content: space-between;
 	font-size: 14px;
 	font-weight: bold;
