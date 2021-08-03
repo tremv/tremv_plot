@@ -154,6 +154,7 @@
 
 			this.plot_div.appendChild(this.title);
 			this.plot_div.appendChild(this.view);
+			this.plot_div.appendChild(document.createElement("div"));
 
 			div_container.appendChild(this.plot_div);
 		}

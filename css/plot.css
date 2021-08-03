@@ -100,6 +100,10 @@ body {
 	display: flex;
 	background-color: #FFFFFF;
 	justify-content: space-between;
+	align-self: flex-start;
+	position: -webkit-sticky;
+	position: sticky;
+	top: 0;
 	font-size: 14px;
 	font-weight: bold;
 	padding-left: 5px;
