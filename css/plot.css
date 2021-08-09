@@ -91,19 +91,15 @@ body {
 }
 
 .plot {
-	position: relative;
 	border-right: 1px solid;
 	overflow: auto;
 }
 
+/*these shouldn't be inside each plot. plot and plot_view should merge and this should be outside the plot container*/
 .plot_title {
 	display: flex;
 	background-color: #FFFFFF;
 	justify-content: space-between;
-	align-self: flex-start;
-	position: -webkit-sticky;
-	position: sticky;
-	top: 0;
 	font-size: 14px;
 	font-weight: bold;
 	padding-left: 5px;
