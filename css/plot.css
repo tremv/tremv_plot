@@ -91,6 +91,7 @@ body {
 }
 
 .plot {
+	/*position: relative;*/
 	border-right: 1px solid;
 	overflow: auto;
 }

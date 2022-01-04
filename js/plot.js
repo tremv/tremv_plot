@@ -392,6 +392,7 @@
 	const str_font = "Arial";
 	const str_size = 14;
 	const base_url = window.location.origin;
+	return;
 
 	const metadata = await fetch(base_url + "/api/metadata/", {method: "GET"}).then(function(r) {
 		return r.json();
@@ -661,6 +662,7 @@
 			}
 		);
 
+		//NOTE: það er alltaf að koma error í json hlutnum ???
 		const range_json = await range_response.json();
 		console.log("after post");
 
