@@ -1,468 +1,76 @@
-//Author Þórður Ágúst Karlsson
-//
-//TODO: correct time labels
-(async function() {
+import * as utils from "./utils.js";
 
-	//credit: bergur snorrason
-	function floatCompare(x, y) {
-		let eps = 1e-9;
-		return (Math.abs(x - y) < eps);
-	}
+export class Plot {
+	//TODO: create reference to the main_station_list object
+	constructor(buffer_size, div_container, server_stations, selected_stations, filter, str_font, str_size) {
+		this.buffer_size = buffer_size;
+		this.data = {};
+		this.data_max = {};
+		this.data_min = {};
+		this.selected_stations = selected_stations;
+		this.filter = filter;//Nota þetta reference til að fletta upp indexinu í filters fylkinu
+		this.str_font = str_font;
+		this.str_size = str_size;
 
-	//a container with a fixed size that overwrites elements when there is no space left
-	class RingBuffer {
-		constructor(size) {
-			this.size = size;
-			this.data = new Array(size);
-			this.start = 0;
-			this.length = 0;
-		}
-
-		push(e) {
-			let index = this.start + this.length;
-			if(index >= this.size) {
-				index -= this.size;
-			}
-
-			this.data[index] = e;
-
-			if(this.length < this.size) {
-				this.length++;
-			}else {
-				this.start++;
-				if(this.start > this.size) {
-					this.start = 0;
-				}
-			}
-		}
-
-		pop() {
-			if(this.length <= 0) throw "Buffer is empty!";
-			let result = this.get(this.length-1);
-			this.length--;
-			return result;
-		}
-
-		get(i) {
-			if(this.length == 0) return null;
-			if(i > this.length || i < 0) {
-				throw "index out of range!";
-			}
-
-			let true_index = this.start + i;
-			if(true_index >= this.size) {
-				true_index -= this.size;
-			}
-
-			return this.data[true_index];
-		}
-
-		set(i, value) {
-			if(i > this.length || i < 0) {
-				throw "index out of range!";
-			}
-
-			let true_index = this.start + i;
-			if(true_index >= this.size) {
-				true_index -= this.size;
-			}
-
-			this.data[true_index] = value;
-		}
-	}
-
-	//drawing functions
-	function drawLine(context, x0, y0, x1, y1, color, width) {
-		let prev_stroke_color = context.strokeStyle;
-		let prev_stroke_width = context.lineWidth;
-
-		context.beginPath();
-		context.strokeStyle = color;
-		context.lineWidth = width;
-		context.moveTo(x0, y0);
-		context.lineTo(x1, y1);
-		context.stroke();
-
-		context.strokeStyle = prev_stroke_color;
-		context.lineWidth = prev_stroke_width;
-	}
-	
-	function drawRect(context, x, y, width, height, color) {
-		let prev_color = context.fillStyle;
-		context.fillStyle = color;
-		context.fillRect(x, y, width, height);
-		context.fillStyle = prev_color;
-	}
-
-	function drawText(context, text, x, y, font, size, color) {
-		let prev_font = context.font;
-		let prev_color = context.fillStyle;
-
-		context.font = size.toString() + "px " + font;
-		context.fillStyle = color;
-		context.fillText(text, x, y);
-
-		context.font = prev_font;
-		context.fillStyle = prev_color;
-	}
-
-	function measureTextWidth(context, text, font, size) {
-		let result = 0.0;
-		let prev_font = context.font;
-
-		context.font = size.toString() + "px " + font;
-		result = context.measureText(text).width;
-		context.font = prev_font;
-
-		return result;
-	}
-
-	class Plot {
-		//TODO: create reference to the main_station_list object
-		constructor(buffer_size, div_container, server_stations, selected_stations, filter) {
-			this.buffer_size = buffer_size;
-			this.data = {};
-			this.data_max = {};
-			this.data_min = {};
-			this.filter = filter;//Nota þetta reference til að fletta upp indexinu í filters fylkinu
-			this.selected_stations = selected_stations;
-			this.canvas = document.createElement("canvas");
-			this.back_canvas = document.createElement("canvas");//create backbuffer
-			this.view = document.createElement("div");
-			this.title = document.createElement("div");//we might for example need to change the label for the date
-			this.visible = true;
-			this.minute_offset = 0;
-			this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
-			this.scaling_factor = 1;
-
-			for(let i = 0; i < server_stations.length; i++) {
-				this.data[server_stations[i]] = new RingBuffer(buffer_size);
-				this.data_max[server_stations[i]] = 0;
-				this.data_min[server_stations[i]] = 1 << 30;//just some sufficiently high number we never expect
-			}
-
-			this.view.classList.add("plot_view");
-			this.view.appendChild(this.canvas);
-
-			this.title.classList.add("plot_title");
-			let filter_label = document.createElement("div");
-			filter_label.innerHTML = filter[0].toFixed(1) + " - " + filter[1].toFixed(1) + "Hz";
-			this.title.appendChild(filter_label);
-
-			this.plot_div = document.createElement("div");
-			this.plot_div.classList.add("plot");
-
-			this.plot_div.appendChild(this.title);
-			this.plot_div.appendChild(this.view);
-			this.plot_div.appendChild(document.createElement("div"));
-
-			div_container.appendChild(this.plot_div);
-		}
-
-		setVisibility(visible) {
-			this.visible = visible;
-
-			if(visible) {
-				this.plot_div.style.display = "block";
-			}else {
-				this.plot_div.style.display = "none";
-			}
-		}
-
-		//TODO: increment minute_of_day value
-		addPoint(station_name, value) {
-			let value_abs = Math.abs(value);
-			this.data[station_name].push(value_abs);
-
-			//TODO: Math.abs?
-			if(value_abs > this.data_max[station_name]) this.data_max[station_name] = value_abs;
-			if(value_abs < this.data_min[station_name]) {
-				if(value_abs > 0.0) this.data_min[station_name] = value_abs;
-			}
-		}
-
-		//TODO: 
-		//	*	Re-render if the page dimnesions change and stuff
-		//	*	Display time a line where the cursor is and show the time next to it
-		//	*	Express the width of the canvas as a ratio of the page size, so something like 70% or something
-		//	*	When we scroll, the text should follow. The plot could be written to a seperate buffer,
-		//		and then we could just write from it to the backbuffer and then draw the text...
-		//	*	Cut image from the left to the position of the scroll bar, so we don't get a scuffed image
-		//		when we open it in a new tab
-		//when station data is null, we just draw the image again
-
-		//make the trace offset thing a parameter
-		draw(draw_cached=false) {
-			if(this.visibile == false) return;
-			//https://www.html5rocks.com/en/tutorials/canvas/hidpi/
-			//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
-			//https://stackoverflow.com/questions/8028864/using-nearest-neighbor-with-css-zoom-on-canvas-and-img
-			/*
-			context.canvas.height = context.canvas.clientHeight*2;
-			context.canvas.width = context.canvas.clientWidth*2;
-			context.scale(2,2);
-			*/
-			let station_names = this.selected_stations;
-			let main_context = this.canvas.getContext("2d");
-			let back_context = this.back_canvas.getContext("2d");
-
-			let width = buffer_size;
-			//NOTE: clientHeight account for padding but not margin
-			let title_div_height = this.title.clientHeight;
-			let scrollbar_height = this.view.offsetHeight - this.canvas.clientHeight;
-
-			let grid_top_margin = 30;
-
-			//grid
-			let plot_count = station_names.length;
-			let trace_height = this.default_min_trace_height;
-
-			let grid_height = trace_height * plot_count;
-			let height = grid_height + grid_top_margin;
-			let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);
-
-			if(screen_fill_height/plot_count > trace_height) {
-				height = screen_fill_height;
-				grid_height = height - grid_top_margin;
-				trace_height = grid_height/plot_count;
-			}
-
-			height *= this.scaling_factor;
-			grid_height *= this.scaling_factor;
-			trace_height *= this.scaling_factor;
-
-			this.canvas.height = height;
-			this.canvas.width = width;
-
-			if(draw_cached == false) {
-				this.back_canvas.height = height;
-				this.back_canvas.width = width;
-				
-				drawRect(back_context, 0, 0, width, height, "#FFFFFF");
-
-				for(let x = 0; x < width; x++) {
-					if((x + this.minute_offset) % 60 == 0) {
-						//the ~ operator is a bitwise NOT(meaning all bits will be flipped).
-						//A double NOT is a weird way to truncate the float in javascript
-						//which is essentially the same as int() in python
-						let draw_minute = this.minute_offset + x;
-						if(draw_minute >= 60*24) draw_minute -= 60*24;
-
-						let hour = (~~(draw_minute / 60)) % 24;
-						let str = "";
-
-						if(hour < 10) str += "0";
-						str += hour;
-
-						let text_width = measureTextWidth(back_context, str, str_font, str_size);
-						let text_x = x - text_width/2.0;
-
-						drawText(back_context, str, text_x, height-str_size/1.5, str_font, str_size, "#000000");
-					}
-
-					//Because of the way canvas rendering works, the 0.5 is here to get a pixel perfect line 
-					let line_x = x + 0.5;
-					let grid_y1 = grid_height + 6;
-
-					if((x + this.minute_offset) % 30 == 0) {
-						drawLine(back_context, line_x, 0, line_x, grid_y1, "#AAAAAA", 1);
-					}else if((x + this.minute_offset) % 10 == 0) {
-						drawLine(back_context, line_x, 0, line_x, grid_y1, "#CCEEFF", 1);
-					}
-
-					for(let i = 0; i < plot_count; i++) {
-						let name = station_names[i];
-						let value = 0.0;
-						try {
-							value = this.data[name].get(x);
-						}catch(e) {
-							console.log(e + " " + x + ": " + this.data[name].length);
-						}
-
-						if(value > 0) {
-							value -= this.data_min[name];
-							let scale_factor = this.data_max[name] - this.data_min[name];
-
-							let plot_y0 = trace_height * i + trace_height;
-							let plot_y1 = plot_y0 - (value/scale_factor * trace_height);
-
-							let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
-							drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
-							//TODO:	maybe it is possible to optimize this somehow by instead of drawing a white square over everything and then drawing
-							//		everything again, to just draw whats in the buffer offset by on pixel and then draw the next column???
-						}
-					}
-				}
-			}
-
-			//TODO:	teikna bara þann part sem hefur að geyma plottið, ekki time labelin.
-			//		Það er hægt að endurteikna time label-in
-			main_context.drawImage(this.back_canvas, 0, 0, width, height);
-
-			//TODO: þarf örugglega að bæta við einhverju margin svo að textinn sé align-aður rétt
-			for(let i = 0; i < plot_count; i++) {
-				let x = this.view.scrollLeft + 5;
-				let y = i * trace_height + str_size;
-				let width = measureTextWidth(back_context, station_names[i], str_font, str_size);
-				let height = str_size;
-				drawText(main_context, station_names[i], x, y, str_font, str_size, "#000000");
-			}
-		}
-	}
-
-	//station selection functions
-	function generateSelectionList(server_stations, selected_stations, selector_div, list_div) {
-		while(list_div.children.length) {
-			list_div.removeChild(list_div.children[0]);
-		}
+		this.canvas = document.createElement("canvas");
+		this.back_canvas = document.createElement("canvas");//create backbuffer
+		this.view = document.createElement("div");
+		this.title = document.createElement("div");//we might for example need to change the label for the date
+		this.visible = true;
+		this.minute_offset = 0;
+		this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
+		this.scaling_factor = 1;
 
 		for(let i = 0; i < server_stations.length; i++) {
-			let name = server_stations[i];
-			if(selected_stations.includes(name) == false) {
-				let option = document.createElement("a");
-				option.innerHTML = name;
-				option.value = name;//NOTE: we might want the innerHTML to be whatever so this is safer
-				option.classList.add("station_selection_selectable");
-				option.onclick = function() {
-					addStation(server_stations, selected_stations, selector_div, list_div, option.value);
-					station_selection_textbox.value = "";
-				};
-
-				list_div.appendChild(option);
-			}
-		}
-	}
-
-	function addStation(server_stations, selected_stations, selector_div, list_div, str) {
-		if(server_stations.includes(str)) {
-			if(selected_stations.includes(str) == false) {
-				let e = document.createElement("span");
-				e.innerHTML = str;
-				e.classList.add("station_selection_tag");
-
-				e.onclick = function(e) {
-					let spans = document.getElementsByClassName("station_selection_tag");
-					let index = Array.prototype.indexOf.call(spans, e.target);//This is stupid but whatever
-					removeStation(server_stations, selected_stations, selector_div, list_div, index);
-				}
-
-				selector_div.appendChild(e);
-
-				selected_stations.push(str);
-
-				for(let i = 0; i < list_div.children.length; i++) {
-					let station = list_div.children[i];
-					if(station.value === str) {
-						list_div.removeChild(station);
-					}
-				}
-
-				return true;
-			}
+			this.data[server_stations[i]] = new utils.RingBuffer(buffer_size);
+			this.data_max[server_stations[i]] = 0;
+			this.data_min[server_stations[i]] = 1 << 30;//just some sufficiently high number we never expect
 		}
 
-		return false;
-	}
+		this.view.classList.add("plot_view");
+		this.view.appendChild(this.canvas);
 
-	//NOTE: The ordering of the spans should mirror the ordering of the strings in selected_stations
-	function removeStation(server_stations, selected_stations, selector_div, list_div, index) {
-		if(index >= 0 && index < selected_stations.length) {
-			if(selected_stations.includes(selected_stations[index])) {
-				let spans = document.getElementsByClassName("station_selection_tag");
+		this.title.classList.add("plot_title");
+		let filter_label = document.createElement("div");
+		filter_label.innerHTML = filter[0].toFixed(1) + " - " + filter[1].toFixed(1) + "Hz";
+		this.title.appendChild(filter_label);
 
-				selected_stations.splice(index, 1);
-				station_selection_selector.removeChild(spans[index]);
-				generateSelectionList(server_stations, selected_stations, selector_div, list_div);
-			}
-		}
-	}
+		this.plot_div = document.createElement("div");
+		this.plot_div.classList.add("plot");
 
-	//initialization stuff
-	const station_selection_selector = document.getElementById("station_selection_selector");
-	const station_selection_list = document.getElementById("station_selection_list");
-	const station_selection_textbox = document.getElementById("station_selection_textbox");
-	const station_selection_button_all = document.getElementById("station_selection_button_all");
-	const station_selection_button_none = document.getElementById("station_selection_button_none");
-	const filter_checkbox_group_name = "selected_filter";
+		this.plot_div.appendChild(this.title);
+		this.plot_div.appendChild(this.view);
+		this.plot_div.appendChild(document.createElement("div"));
 
-	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
-	ui_plot_scaling_slider.value = 1;
+		div_container.appendChild(this.plot_div);
 
-	const buffer_size = 1440;
-	const str_font = "Arial";
-	const str_size = 14;
-	const base_url = window.location.origin;
-	return;
+		//so you can reference this object from within the event handlers.
+		let plot_object = this;
 
-	const metadata = await fetch(base_url + "/api/metadata/", {method: "GET"}).then(function(r) {
-		return r.json();
-	});
-
-	const selected_stations = [];
-	const server_stations = metadata.station_names;
-	const filters = metadata.filters;
-
-	const filter_selection = document.getElementById("filter_selection");
-	const plot_container = document.getElementById("plot_container");
-	const plots = [];
-
-	//initialize filter checkboxes
-	for(let i = 0; i < filters.length; i++) {
-		let p = document.createElement("p");
-		let cb = document.createElement("input");
-		let l = document.createElement("label");
-
-		let id = "filter_checkbox" + i;
-		cb.setAttribute("id", id);
-		cb.setAttribute("type", "checkbox");
-		cb.setAttribute("name", filter_checkbox_group_name);
-		cb.checked = true;
-
-		l.setAttribute("for", id);
-		l.innerHTML = (filters[i][0].toFixed(1)) + " - " + (filters[i][1].toFixed(1));
-
-		p.appendChild(cb);
-		p.appendChild(l);
-
-		filter_selection.appendChild(p);
-	}
-
-	const filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
-
-	//initialize plots
-	for(let i = 0; i < filters.length; i++) {
-		let plot = new Plot(buffer_size, plot_container, server_stations, selected_stations, filters[i]);
-
-		//TODO: maybe there is a better way to do this
-		plot.view.onscroll = function(e) {
-			plot.draw(true);
+		this.view.onscroll = function(e) {
+			plot_object.draw(true);
 		}
 
-		//TODO: this is pretty hacky
-		plot.canvas.onmousemove = function(e) {
-			plot.draw(true);
-			let context = plot.canvas.getContext("2d");
+		this.canvas.onmouseout = function(e) {
+			plot_object.draw(true);
+		}
+
+		this.canvas.onmousemove = function(e) {
+			plot_object.draw(true);
+			let context = plot_object.canvas.getContext("2d");
 			let x = e.layerX + 0.5;
-			drawLine(context, x, 0, x, plot.canvas.height, "#000000", 1);
+			utils.drawLine(context, x, 0, x, plot_object.canvas.height, "#000000", 1);
 			let square_height = 25;
 			let square_width = 50;
-
-			let plot_count = 0;
-
-			for(let j = 0; j < plot_container.childElementCount; j++) {
-				plot_count += (plot_container.children[j].style.display === "none") ? 0 : 1;
-			}
-
-			let plot_width = plot_container.clientWidth/plot_count;
 
 			if(e.clientX + square_width > e.target.getBoundingClientRect().right) {
 				x -= e.clientX + square_width - e.target.getBoundingClientRect().right;
 			}
 
-			drawRect(context, x, e.layerY-square_height, square_width, square_height, "#FFFA64");
+			utils.drawRect(context, x, e.layerY-square_height, square_width, square_height, "#FFFA64");
 
-			let min_of_day = e.layerX + plot.minute_offset;
-			if(min_of_day > plot.buffer_size) min_of_day -= plot.buffer_size;
+			let min_of_day = e.layerX + plot_object.minute_offset;
+			if(min_of_day > plot_object.buffer_size) min_of_day -= plot_object.buffer_size;
 
 			let hour = ~~(min_of_day / 60);
 			let minute = min_of_day % 60;
@@ -475,334 +83,157 @@
 			minute_str += minute;
 			let text_offset = 7;
 
-			drawText(context, hour_str + ":" + minute_str, x+text_offset, e.layerY-text_offset, str_font, str_size, "#000000");
+			utils.drawText(context, hour_str + ":" + minute_str, x+text_offset, e.layerY-text_offset, plot_object.str_font, plot_object.str_size, "#000000");
 		}
-
-		plot.canvas.onmouseout = function(e) {
-			plot.draw(true);
-		}
-
-		plot.draw();
-		plots.push(plot);
 	}
 
-	let date_label = document.createElement("div");
-	let starttime = new Date();
-	date_label.innerHTML = starttime.getDate() + "/" + (starttime.getMonth()+1) + "/" + starttime.getFullYear();
-	plots[plots.length-1].title.appendChild(date_label);
+	setVisibility(visible) {
+		this.visible = visible;
 
-	generateSelectionList(server_stations, selected_stations, station_selection_selector, station_selection_list);
-
-	station_selection_textbox.onkeydown = function(e) {
-		if(e.code === "Backspace") {
-			if(e.target.value === "") {
-				removeStation(server_stations, selected_stations, station_selection_selector, station_selection_list, selected_stations.length-1);
-			}
+		if(visible) {
+			this.plot_div.style.display = "block";
 		}else {
-			if(e.code === "Enter" || e.code === "Space") {
-				e.preventDefault();
-				if(addStation(server_stations, selected_stations, station_selection_selector, station_selection_list, e.target.value)) {
-					e.target.value = "";
+			this.plot_div.style.display = "none";
+		}
+	}
+
+	//TODO: increment minute_of_day value
+	addPoint(station_name, value) {
+		let value_abs = Math.abs(value);
+		this.data[station_name].push(value_abs);
+
+		//TODO: Math.abs?
+		if(value_abs > this.data_max[station_name]) this.data_max[station_name] = value_abs;
+		if(value_abs < this.data_min[station_name]) {
+			if(value_abs > 0.0) this.data_min[station_name] = value_abs;
+		}
+	}
+
+	//TODO: 
+	//	*	Re-render if the page dimnesions change and stuff
+	//	*	Display time a line where the cursor is and show the time next to it
+	//	*	Express the width of the canvas as a ratio of the page size, so something like 70% or something
+	//	*	When we scroll, the text should follow. The plot could be written to a seperate buffer,
+	//		and then we could just write from it to the backbuffer and then draw the text...
+	//	*	Cut image from the left to the position of the scroll bar, so we don't get a scuffed image
+	//		when we open it in a new tab
+	//when station data is null, we just draw the image again
+
+	//make the trace offset thing a parameter
+	draw(draw_cached=false) {
+		if(this.visibile == false) return;
+		//https://www.html5rocks.com/en/tutorials/canvas/hidpi/
+		//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
+		//https://stackoverflow.com/questions/8028864/using-nearest-neighbor-with-css-zoom-on-canvas-and-img
+		/*
+		context.canvas.height = context.canvas.clientHeight*2;
+		context.canvas.width = context.canvas.clientWidth*2;
+		context.scale(2,2);
+		*/
+		let station_names = this.selected_stations;
+		let main_context = this.canvas.getContext("2d");
+		let back_context = this.back_canvas.getContext("2d");
+
+		let width = this.buffer_size;
+		//NOTE: clientHeight account for padding but not margin
+		let title_div_height = this.title.clientHeight;
+		let scrollbar_height = this.view.offsetHeight - this.canvas.clientHeight;
+
+		let grid_top_margin = 30;
+
+		//grid
+		let plot_count = station_names.length;
+		let trace_height = this.default_min_trace_height;
+
+		let grid_height = trace_height * plot_count;
+		let height = grid_height + grid_top_margin;
+		let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);
+
+		if(screen_fill_height/plot_count > trace_height) {
+			height = screen_fill_height;
+			grid_height = height - grid_top_margin;
+			trace_height = grid_height/plot_count;
+		}
+
+		height *= this.scaling_factor;
+		grid_height *= this.scaling_factor;
+		trace_height *= this.scaling_factor;
+
+		this.canvas.height = height;
+		this.canvas.width = width;
+
+		if(draw_cached == false) {
+			this.back_canvas.height = height;
+			this.back_canvas.width = width;
+			
+			utils.drawRect(back_context, 0, 0, width, height, "#FFFFFF");
+
+			for(let x = 0; x < width; x++) {
+				if((x + this.minute_offset) % 60 == 0) {
+					//the ~ operator is a bitwise NOT(meaning all bits will be flipped).
+					//A double NOT is a weird way to truncate the float in javascript
+					//which is essentially the same as int() in python
+					let draw_minute = this.minute_offset + x;
+					if(draw_minute >= 60*24) draw_minute -= 60*24;
+
+					let hour = (~~(draw_minute / 60)) % 24;
+					let str = "";
+
+					if(hour < 10) str += "0";
+					str += hour;
+
+					let text_width = utils.measureTextWidth(back_context, str, this.str_font, this.str_size);
+					let text_x = x - text_width/2.0;
+
+					utils.drawText(back_context, str, text_x, height-this.str_size/1.5, this.str_font, this.str_size, "#000000");
 				}
-			}
-		}
-	}
 
-	station_selection_textbox.oninput = function(e) {
-		let re = new RegExp(e.target.value);
-		let matched_stations = [];
+				//Because of the way canvas rendering works, the 0.5 is here to get a pixel perfect line 
+				let line_x = x + 0.5;
+				let grid_y1 = grid_height + 6;
 
-		for(let i = 0; i < server_stations.length; i++) {
-			if(re.test(server_stations[i])) {
-				matched_stations.push(server_stations[i]);
-			}
-		}
-
-		generateSelectionList(matched_stations, selected_stations, station_selection_selector, station_selection_list);
-	}
-
-	station_selection_button_all.onclick = function(e) {
-		if(selected_stations.length < server_stations.length) {
-			for(let i = 0; i < server_stations.length; i++) {
-				addStation(server_stations, selected_stations, station_selection_selector, station_selection_list, server_stations[i]);
-			}
-		}
-	}
-
-	station_selection_button_none.onclick = function(e) {
-		while(selected_stations.length > 0) {
-			removeStation(server_stations, selected_stations, station_selection_selector, station_selection_list, selected_stations.length-1);
-		}
-	}
-
-	document.onclick = function(e) {
-		if(e.target !== station_selection_textbox) {
-			if(e.target !== station_selection_selector) {
-				if(e.target.classList.contains("station_selection_selectable") == false) {
-					station_selection_list.style.display = "none";
+				if((x + this.minute_offset) % 30 == 0) {
+					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, "#AAAAAA", 1);
+				}else if((x + this.minute_offset) % 10 == 0) {
+					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, "#CCEEFF", 1);
 				}
-			}
-		}
-	}
 
-	station_selection_textbox.onfocus = function(e) {
-		station_selection_list.style.display = "flex";
-		station_selection_list.scrollTop = 0;
-	}
-	
-	function updatePlotScaling(plots, value, draw_cached=false) {
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].scaling_factor = value;
-			plots[i].draw(draw_cached);
-		}
-	}
+				for(let i = 0; i < plot_count; i++) {
+					let name = station_names[i];
+					let value = 0.0;
+					try {
+						value = this.data[name].get(x);
+					}catch(e) {
+						console.log(e + " " + x + ": " + this.data[name].length);
+					}
 
-	ui_plot_scaling_slider.oninput = function(e) {
-		let value = e.target.value;
-		updatePlotScaling(plots, value, true);
-	}
+					if(value > 0) {
+						value -= this.data_min[name];
+						let scale_factor = this.data_max[name] - this.data_min[name];
 
-	ui_plot_scaling_slider.onchange = function(e) {
-		let value = e.target.value;
-		updatePlotScaling(plots, value);
-	}
+						let plot_y0 = trace_height * i + trace_height;
+						let plot_y1 = plot_y0 - (value/scale_factor * trace_height);
 
-	document.getElementById("ui_reset_button").onclick = function(e) {
-		updatePlotScaling(plots, 1);
-		ui_plot_scaling_slider.value = 1;
-	}
-
-	//TODO: move this
-	let update_interval_id = 0;//TODO place this somewhere nice
-	const form = document.querySelector("form");
-	//TODO: move this
-
-	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-		let query_string = window.location.search;
-		let search_params = new URLSearchParams(query_string);
-
-		if(search_params.has("stations")) {
-			let stations = decodeURI(search_params.get("stations")).split(",");
-
-			for(let i = 0; i < stations.length; i++) {
-				if(server_stations.includes(stations[i])) {
-					addStation(server_stations, selected_stations, station_selection_selector, station_selection_list, stations[i]);
-				}
-			}
-
-			backfillPlots();
-		}
-	}
-
-	async function backfillPlots() {
-		const range_end = new Date(Date.now() - 1000*60);//get the current timestamp minus 1 min
-		const day_in_msec = 60*60*24 * 1000;
-		const range_start = new Date(range_end - day_in_msec);
-		let no_check = true;
-
-		let minute_of_day = range_end.getHours() * 60 + range_end.getMinutes();
-
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset = minute_of_day;
-		}
-
-		query = {};
-		query["filters"] = [];
-
-		for(let i = 0; i < filter_checkboxes.length; i++) {
-			let checked = filter_checkboxes[i].checked;
-			if(checked) {
-				query["filters"].push(filters[i]);
-				no_check = false;
-			}
-
-			plots[i].setVisibility(checked);
-		}
-
-		if(no_check) {
-			let checkbox = filter_checkboxes[filter_checkboxes.length-1];
-			checkbox.setCustomValidity("You must select at least one checkbox!");
-			checkbox.reportValidity();
-			checkbox.setCustomValidity("");
-			return;
-		}
-
-		query["station_names"] = selected_stations;//TODO: this should be like the selected list
-		query["do_log_transform"] = true;
-
-		console.log(range_start);
-		console.log(range_end);
-
-		query["rangestart"] = {
-			year: range_start.getFullYear(),
-			month: range_start.getMonth()+1,
-			day: range_start.getDate()
-		};
-
-		query["rangestart"]["hour"] = range_start.getHours();
-		query["rangestart"]["minute"] = range_start.getMinutes();
-
-		query["rangeend"] = {
-			year: range_end.getFullYear(),
-			month: range_end.getMonth()+1,
-			day: range_end.getDate()
-		};
-
-		query["rangeend"]["hour"] = range_end.getHours();
-		query["rangeend"]["minute"] = range_end.getMinutes();
-
-		console.log("before post");
-		const range_response = await fetch(base_url + "/api/range/", 
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify(query)
-			}
-		);
-
-		//NOTE: það er alltaf að koma error í json hlutnum ???
-		const range_json = await range_response.json();
-		console.log("after post");
-
-		let filter_indicies = [];
-
-		for(let i = 0; i < query["filters"].length; i++) {
-			let f = query["filters"][i];
-
-			for(let j = 0; j < filters.length; j++) {
-				if(floatCompare(f[0], filters[j][0]) && floatCompare(f[1], filters[j][1])) {
-					filter_indicies.push(j);
-					break;
+						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
+						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
+						//TODO:	maybe it is possible to optimize this somehow by instead of drawing a white square over everything and then drawing
+						//		everything again, to just draw whats in the buffer offset by on pixel and then draw the next column???
+					}
 				}
 			}
 		}
 
-		for(let i = 0; i < filter_indicies.length; i++) {
-			let plot = plots[filter_indicies[i]];
+		//TODO:	teikna bara þann part sem hefur að geyma plottið, ekki time labelin.
+		//		Það er hægt að endurteikna time label-in
+		main_context.drawImage(this.back_canvas, 0, 0, width, height);
 
-			//loop over selected stations
-			for(let j = 0; j < selected_stations.length; j++) {
-				let station_data = range_json["data"][i]["stations"][selected_stations[j]];
-
-				for(let k = 0; k < station_data.length; k++) {
-					plot.addPoint(selected_stations[j], station_data[k]);
-				}
-			}
-		}
-
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].draw();
-		}
-
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].view.scrollLeft = buffer_size;
-		}
-
-		if(update_interval_id) clearInterval(update_interval_id);
-		update_interval_id = setInterval(updatePlots, 1000*60);
-	}
-
-	//render plot to buffer and re render the text on top
-	async function updatePlots() {
-		let selected_filters = [];
-
-		for(let i = 0; i < filter_checkboxes.length; i++) {
-			let checked = filter_checkboxes[i].checked;
-			if(checked) {
-				selected_filters.push(filters[i]);
-			}
-
-			//TODO: setVisibility ætti að gerast þegar checkboxið sjálft er hakað/afhakað
-			//plots[i].setVisibility(checked);
-		}
-
-		query = {};
-		query["station_names"] = server_stations;//TODO: maybe consider just fetching the selected once?
-		query["filters"] = selected_filters;
-		query["do_log_transform"] = true;
-
-		const latest_data = await fetch(base_url + "/api/latest/", 
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify(query)
-			}
-		).then(function(r) {
-			return r.json();
-		});
-
-		for(let i = 0; i < plots.length; i++) {
-			for(let j = 0; j < server_stations.length; j++) {
-				let value = 0.0;
-
-				if(latest_data) {
-					value = latest_data["data"][i]["stations"][server_stations[j]];
-				}
-
-				plots[i].addPoint(server_stations[j], value);
-			}
-		}
-
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset++;//TODO: this feels weird
-			if(plots[i].minute_offset >= plots[i].buffer_size) plots[i].minute_offset = 0;
-			plots[i].draw();
-		}
-
-		let minute_now = new Date();
-		let minute_before = new Date(Date.now() - 1000*60);
-		if(minute_now.getDate() !== minute_before.getDate()) {
-			date_label.innerHTML = minute_now.getDate() + "/" + (minute_now.getMonth()+1) + "/" + minute_now.getFullYear();
+		//TODO: þarf örugglega að bæta við einhverju margin svo að textinn sé align-aður rétt
+		for(let i = 0; i < plot_count; i++) {
+			let x = this.view.scrollLeft + 5;
+			let y = i * trace_height + this.str_size;
+			let width = utils.measureTextWidth(back_context, station_names[i], this.str_font, this.str_size);
+			let height = this.str_size;
+			utils.drawText(main_context, station_names[i], x, y, this.str_font, this.str_size, "#000000");
 		}
 	}
-
-	form.onsubmit = async function(e) {
-		e.preventDefault();
-
-		//TODO: I am not sure how you would encode the filters in the query string...
-		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-			let query_string = window.location.search;
-			let search_params = new URLSearchParams(query_string);
-			let stations_str = "";
-
-			for(let i = 0; i < selected_stations.length; i++) {
-				stations_str += selected_stations[i];
-				if(i !== selected_stations.length-1) {
-					stations_str += ",";
-				}
-			}
-
-			search_params.set("stations", stations_str);
-			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
-		}
-
-		backfillPlots();
-	}
-
-
-
-	document.onkeydown = function(e) {
-		//TODO: just a quick way to hide the controls. Provide a UI element to hide/unhide them
-		if(e.code === "ShiftRight") {
-			let controls = document.getElementById("control_container");
-			if(controls.style.display === "none") {
-				controls.style.display = "block";
-				for(let i = 0; i < plots.length; i++) {
-					plots[i].view.scrollLeft = buffer_size;
-				}
-			}else {
-				controls.style.display = "none";
-			}
-		}
-	}
-
-	window.onresize = function(e) {
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].draw(true);
-		}
-	}
-})();
+}
