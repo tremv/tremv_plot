@@ -1,5 +1,7 @@
 //TODO: breyta nöfnum
 //TODO: ég get bara dynamically búið til hlutinn hér án þess að þetta sé full on web component
+//TODO:	það þarf aðeins að fínpússa hvernig listinn birtist. Listinn af völdum stöðvum stækkar alltaf niður þannig drop down listinn
+//		færist líka niður sem er pirrandi. Kannski ætti hann bara að birtast fyrir ofan?
 export class StationSelection {
 	constructor(available_stations) {
 		this.selector_div = document.getElementById("station_selection_selector");
@@ -20,19 +22,21 @@ export class StationSelection {
 				if(e.target.value === "") {
 					class_this.removeStation(class_this.selected_stations.length-1);
 				}
-			}else {
-				if(e.code === "Enter" || e.code === "Space") {
-					e.preventDefault();
-					if(class_this.addStation(e.target.value)) {
-						e.target.value = "";
-						class_this.generateSelectionList(class_this.available_stations);
-					}
+			}else if(e.code === "Escape") {
+				e.target.value = "";
+				class_this.generateSelectionList(class_this.available_stations);
+				class_this.list_div.style.display = "none";
+				document.activeElement.blur();
+			}else if(e.code === "Enter" || e.code === "Space") {
+				e.preventDefault();
+				if(class_this.addStation(e.target.value)) {
+					e.target.value = "";
+					class_this.generateSelectionList(class_this.available_stations);
 				}
 			}
 		}
 
 		//Match station names starting with input string and refresh the station list
-		//TODO: you shouldn't be able to type stuff if you have selected all the stations...
 		this.textbox.oninput = function(e) {
 			if(class_this.selected_stations.length === class_this.available_stations.length) {
 				class_this.textbox.value = "";
