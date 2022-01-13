@@ -16,7 +16,40 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	}
 }
 
+
 (async function() {
+	//við erum bara að pæla að sækja range sem jafngildir einum degi, því plotting strúktúrinn bíður ekki upp á það eins og er
+	async function rangeRequest(range_start, range_end, stations) {
+		let json_query = {};
+		json_query["stations"] = stations;
+
+		json_query["range_start"] = range_start.toJSON();
+		json_query["range_end"] = range_end.toJSON();
+
+		console.log(json_query["range_start"]);
+		console.log(json_query["range_end"]);
+
+		const response = await fetch(base_url + "/api/range/",
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json;charset=utf-8'
+				},
+				body: JSON.stringify(json_query)
+			}
+		);
+
+		//TODO: error handling!!! HTTP status!!!
+		if(response.ok) {
+			const range_result = await response.json();
+			return range_result;
+		}else {
+			console.log("HTTP Error " + request.status + ": " + request.statusText);
+		}
+
+		return null;
+	}
+
 	const base_url = window.location.origin;
 	const buffer_size = 1440;
 	const str_font = "Arial";
@@ -27,12 +60,10 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
 	ui_plot_scaling_slider.value = 1;
 
-	//TODO: error handling!!!
+	//TODO: error handling!!! HTTP status!!!
 	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
 		return r.json();
 	});
-
-	console.log(tremv_config);
 
 	const filter_checkbox_group_name = "selected_filter";
 
@@ -70,12 +101,105 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		plots.push(plot);
 	}
 
-	//backfill TODO
+	//TODO: filter checkbox instant og í UI controls en ekki í 
+
+	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
+	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
+	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
+	//Backfill request
+
+	/*
+	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+		let query_string = window.location.search;
+		let search_params = new URLSearchParams(query_string);
+
+		if(search_params.has("stations")) {
+			let stations = decodeURI(search_params.get("stations")).split(",");
+
+			for(let i = 0; i < stations.length; i++) {
+				if(server_stations.includes(stations[i])) {
+					addStation(server_stations, selected_stations, station_selection_selector, station_selection_list, stations[i]);
+				}
+			}
+
+			backfillPlots();
+		}
+	}
+	*/
+	
+	const station_form = document.querySelector("form");
+
+	station_form.onsubmit = async function(e) {
+		e.preventDefault();
+
+		let selected_stations = station_selection.selected_stations;
+
+		//TODO: láta athugun á query params gerast þegar maður ræsir síðuna
+		//TODO: include ui settings in query string
+		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+			let query_string = window.location.search;
+			let search_params = new URLSearchParams(query_string);
+			let stations_str = "";
+
+			for(let i = 0; i < selected_stations.length; i++) {
+				stations_str += selected_stations[i];
+				if(i !== selected_stations.length-1) {
+					stations_str += ",";
+				}
+			}
+
+			search_params.set("stations", stations_str);
+			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
+		}
+
+		const two_min = 1000*60*2;
+		const range_end = new Date(Date.now() - two_min);
+		const day_in_ms = 60*60*24 * 1000;
+		const range_start = new Date(range_end - day_in_ms);
+
+		let json_response = await rangeRequest(range_start, range_end, station_selection.selected_stations);
+		console.log(json_response);
+
+		let minute_of_day = range_end.getHours() * 60 + range_end.getMinutes();
+		for(let i = 0; i < plots.length; i++) plots[i].minute_offset = minute_of_day;
+
+		let filter_indicies = [];
+
+		for(let i = 0; i < json_response.length; i++) {
+			let f_str = json_response[i]["filter"].split("-");
+			let f = [parseFloat(f_str[0]), parseFloat(f_str[1])];
+
+			for(let j = 0; j < tremv_config.filters.length; j++) {
+				if(utils.floatCompare(f[0], tremv_config.filters[j][0]) && utils.floatCompare(f[1], tremv_config.filters[j][1])) {
+					filter_indicies.push(j);
+					break;
+				}
+			}
+		}
+
+		for(let i = 0; i < filter_indicies.length; i++) {
+			let plot = plots[filter_indicies[i]];
+
+			//loop over selected stations
+			for(let j = 0; j < selected_stations.length; j++) {
+				let station_data = json_response[i]["stations"][selected_stations[j]];
+
+				for(let k = 0; k < station_data.length; k++) {
+					plot.addPoint(selected_stations[j], station_data[k]);
+				}
+			}
+		}
+	}
+
+	/*
 	(async function() {
+		console.log("hello");
+
 		console.log("gonna take a lil nap");
 		await sleep(3000);
 		console.log("feel better after my nap");
 	})();
+	*/
 
 	//TODO: muna að disable-a UI-ið á meðan það er verið að bíða eftir response...
 

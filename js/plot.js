@@ -2,11 +2,11 @@ import * as utils from "./utils.js";
 
 export class Plot {
 	//TODO: create reference to the main_station_list object
-	constructor(buffer_size, div_container, server_stations, selected_stations, filter, str_font, str_size) {
+	constructor(buffer_size, div_container, available_stations, selected_stations, filter, str_font, str_size) {
 		this.buffer_size = buffer_size;
 		this.data = {};
-		this.data_max = {};
-		this.data_min = {};
+		this.station_min = {};
+		this.station_max = {};
 		this.selected_stations = selected_stations;
 		this.filter = filter;//Nota þetta reference til að fletta upp indexinu í filters fylkinu
 		this.str_font = str_font;
@@ -21,10 +21,10 @@ export class Plot {
 		this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
 		this.scaling_factor = 1;
 
-		for(let i = 0; i < server_stations.length; i++) {
-			this.data[server_stations[i]] = new utils.RingBuffer(buffer_size);
-			this.data_max[server_stations[i]] = 0;
-			this.data_min[server_stations[i]] = 1 << 30;//just some sufficiently high number we never expect
+		for(let i = 0; i < available_stations.length; i++) {
+			this.data[available_stations[i]] = new utils.RingBuffer(buffer_size);
+			this.station_min[available_stations[i]] = Number.MAX_SAFE_INTEGER;
+			this.station_max[available_stations[i]] = -Number.MAX_SAFE_INTEGER;
 		}
 
 		this.view.classList.add("plot_view");
@@ -47,6 +47,7 @@ export class Plot {
 		//so you can reference this object from within the event handlers.
 		let plot_object = this;
 
+		//TODO: disable this stuff until we have stuff to plot
 		this.view.onscroll = function(e) {
 			plot_object.draw(true);
 		}
@@ -99,14 +100,15 @@ export class Plot {
 
 	//TODO: increment minute_of_day value
 	addPoint(station_name, value) {
-		let value_abs = Math.abs(value);
-		this.data[station_name].push(value_abs);
+		let v = Math.abs(value);
 
-		//TODO: Math.abs?
-		if(value_abs > this.data_max[station_name]) this.data_max[station_name] = value_abs;
-		if(value_abs < this.data_min[station_name]) {
-			if(value_abs > 0.0) this.data_min[station_name] = value_abs;
+		if(v > 0.0) {
+			v = 1000*Math.log(v+1);
+			if(v > this.station_max[station_name]) this.station_max[station_name] = v;
+			if(v < this.station_min[station_name]) this.station_min[station_name] = v;
 		}
+
+		this.data[station_name].push(v);
 	}
 
 	//TODO: 
@@ -130,7 +132,6 @@ export class Plot {
 		context.canvas.width = context.canvas.clientWidth*2;
 		context.scale(2,2);
 		*/
-		let station_names = this.selected_stations;
 		let main_context = this.canvas.getContext("2d");
 		let back_context = this.back_canvas.getContext("2d");
 
@@ -142,12 +143,12 @@ export class Plot {
 		let grid_top_margin = 30;
 
 		//grid
-		let plot_count = station_names.length;
 		let trace_height = this.default_min_trace_height;
+		let plot_count = this.selected_stations.length;
 
 		let grid_height = trace_height * plot_count;
 		let height = grid_height + grid_top_margin;
-		let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);
+		let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);//???
 
 		if(screen_fill_height/plot_count > trace_height) {
 			height = screen_fill_height;
@@ -162,6 +163,16 @@ export class Plot {
 		this.canvas.height = height;
 		this.canvas.width = width;
 
+		let global_max_value = -Number.MAX_SAFE_INTEGER;
+
+		for(let i = 0; i < this.selected_stations.length; i++) {
+			let name = this.selected_stations[i];
+			let v = this.station_max[name] - this.station_min[name]
+
+			if(v > global_max_value) global_max_value = v;
+		}
+
+		//TODO TODO TODO
 		if(draw_cached == false) {
 			this.back_canvas.height = height;
 			this.back_canvas.width = width;
@@ -199,7 +210,7 @@ export class Plot {
 				}
 
 				for(let i = 0; i < plot_count; i++) {
-					let name = station_names[i];
+					let name = this.selected_stations[i];
 					let value = 0.0;
 					try {
 						value = this.data[name].get(x);
@@ -231,9 +242,9 @@ export class Plot {
 		for(let i = 0; i < plot_count; i++) {
 			let x = this.view.scrollLeft + 5;
 			let y = i * trace_height + this.str_size;
-			let width = utils.measureTextWidth(back_context, station_names[i], this.str_font, this.str_size);
+			let width = utils.measureTextWidth(back_context, this.selected_stations[i], this.str_font, this.str_size);
 			let height = this.str_size;
-			utils.drawText(main_context, station_names[i], x, y, this.str_font, this.str_size, "#000000");
+			utils.drawText(main_context, this.selected_stations[i], x, y, this.str_font, this.str_size, "#000000");
 		}
 	}
 }
