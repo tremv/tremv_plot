@@ -44,6 +44,10 @@ export class Plot {
 
 		div_container.appendChild(this.plot_div);
 
+		this.zero_in_transform = Math.exp(0);
+		this.y_transform = (x) => Math.log(this.zero_in_transform + x);
+
+
 		//so you can reference this object from within the event handlers.
 		let plot_object = this;
 
@@ -103,7 +107,7 @@ export class Plot {
 		let v = Math.abs(value);
 
 		if(v > 0.0) {
-			v = 1000*Math.log(v+1);
+			v = this.y_transform(v);
 			if(v > this.station_max[station_name]) this.station_max[station_name] = v;
 			if(v < this.station_min[station_name]) this.station_min[station_name] = v;
 		}
@@ -140,13 +144,14 @@ export class Plot {
 		let title_div_height = this.title.clientHeight;
 		let scrollbar_height = this.view.offsetHeight - this.canvas.clientHeight;
 
+		//TODO: hvað er þetta?
 		let grid_top_margin = 30;
 
 		//grid
 		let trace_height = this.default_min_trace_height;
 		let plot_count = this.selected_stations.length;
 
-		let grid_height = trace_height * plot_count;
+		let grid_height = trace_height * (plot_count+1);//+1 því efsta plotið gæti verið með max gildið
 		let height = grid_height + grid_top_margin;
 		let screen_fill_height = window.innerHeight - (scrollbar_height + title_div_height);//???
 
@@ -172,7 +177,6 @@ export class Plot {
 			if(v > global_max_value) global_max_value = v;
 		}
 
-		//TODO TODO TODO
 		if(draw_cached == false) {
 			this.back_canvas.height = height;
 			this.back_canvas.width = width;
@@ -219,11 +223,10 @@ export class Plot {
 					}
 
 					if(value > 0) {
-						value -= this.data_min[name];
-						let scale_factor = this.data_max[name] - this.data_min[name];
+						value -= this.station_min[name];
 
 						let plot_y0 = trace_height * i + trace_height;
-						let plot_y1 = plot_y0 - (value/scale_factor * trace_height);
+						let plot_y1 = plot_y0 - (value/global_max_value * trace_height*2);
 
 						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
 						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
