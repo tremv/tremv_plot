@@ -116,6 +116,7 @@ export class StationSelection {
 		}
 	}
 
+	//TODO:láta pilluna vera gráa ef hún er ekki available...
 	addStation(str) {
 		if(this.available_stations.includes(str)) {
 			if(this.selected_stations.includes(str) == false) {

@@ -49,6 +49,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		return null;
 	}
 
+	//TODO: disable-a ui á meðan þetta er í gangi
 	async function backfillPlots(stations, plots) {
 		//TODO: láta athugun á query params gerast þegar maður ræsir síðuna
 		//TODO: include ui settings in query string
@@ -96,6 +97,9 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			plots[i].draw();
 			plots[i].view.scrollLeft = buffer_size;
 		}
+	}
+
+	async function livePlot() {
 	}
 
 	const base_url = window.location.origin;
@@ -149,8 +153,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		plots.push(plot);
 	}
 
-	//TODO: filter checkbox instant og í UI controls en ekki í 
-
 	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
 	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
 	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
@@ -178,6 +180,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	station_form.onsubmit = async function(e) {
 		e.preventDefault();
+
 		let stations = station_selection.selected_stations;
 
 		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
@@ -197,7 +200,58 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}
 
 		backfillPlots(station_selection.selected_stations, plots);
+
+		let min_in_ms = 1000 * 60
+
+		//TODO: það er hræðilegt að gera þetta hérna því þá verða mörg instance(þræðir?) sem er að sofa og senda request í hvert skipti sem maður ýtir á plot takkann
+		//
+		//TODO TODO TODO
+		//Hvernig á ég að endurtaka þetta á skinsamlegan hátt?
+		while(true) {
+			let now = Date.now();
+			let current_min = ~~(now / min_in_ms);
+			let next_min_in_ms = (current_min + 1) * min_in_ms;
+
+			console.log("sleeping for " + ((next_min_in_ms - now) / 1000) + " sec.");
+
+			await sleep(next_min_in_ms - now);
+
+			let json_query = {};
+			json_query["stations"] = station_selection.selected_stations;
+
+			const response = await fetch(base_url + "/api/latest/",
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json;charset=utf-8'
+					},
+					body: JSON.stringify(json_query)
+				}
+			);
+
+			//TODO: error handling!!! HTTP status!!!
+			if(response.ok) {
+				const result = await response.json();
+				console.log(result);
+				for(let i = 0; i < plots.length; i++) {
+				}
+			}else {
+				console.log("HTTP Error " + request.status + ": " + request.statusText);
+			}
+		}
 	}
+
+
+	//TODO: ef query parameter-arnir eru bara stöðvar ættum við að fara beint í live mode
+	//TODO: Live update
+	//TODO: Dagsetning
+	//TODO: Filter toggle
+	//TODO: UI slider
+	//
+	//TODO: Live toggle
+	//TODO: Date picker(sem disable-ast þegar þú togglar
+	//TODO: Ætti að vera einhver svona tab???
+	//TODO: Verify-a að við séum að fá allt rétta dótið frá(as in er tímastimplarnir á gögnunum þeir sem við vildum?)
 
 	/*
 	(async function() {
