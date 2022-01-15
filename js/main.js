@@ -99,9 +99,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}
 	}
 
-	async function livePlot() {
-	}
-
 	const base_url = window.location.origin;
 	const buffer_size = 1440;
 	const str_font = "Arial";
@@ -245,6 +242,27 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			}
 		}
 		*/
+	}
+
+	ui_plot_scaling_slider.oninput = function(e) {
+		let value = e.target.value;
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].updateScaling(value, true);
+		}
+	}
+
+	ui_plot_scaling_slider.onchange = function(e) {
+		let value = e.target.value;
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].updateScaling(value);
+		}
+	}
+
+	document.getElementById("ui_reset_button").onclick = function(e) {
+		for(let i = 0; i < plots.length; i++) {
+			plots[i].updateScaling(1);
+		}
+		ui_plot_scaling_slider.value = 1;
 	}
 
 

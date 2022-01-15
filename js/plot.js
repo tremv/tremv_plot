@@ -98,6 +98,11 @@ export class Plot {
 		}
 	}
 
+	updateScaling(value, draw_cached=false) {
+		this.scaling_factor = value;
+		this.draw(draw_cached);
+	}
+
 	//TODO: increment minute_of_day value
 	addPoint(station_name, value) {
 		let v = Math.abs(value);
@@ -164,14 +169,14 @@ export class Plot {
 		this.canvas.height = height;
 		this.canvas.width = width;
 
-		let scaling_factor = -Number.MAX_SAFE_INTEGER;
+		let value_max = -Number.MAX_SAFE_INTEGER;
 
 		for(let i = 0; i < this.selected_stations.length; i++) {
 			let name = this.selected_stations[i];
-			//we clip values by the min when we are plotting so this is the scaling factor
+			//we clip values by the min when we are plotting so this is what we scale all the values by
 			let v = this.station_max[name] - this.station_min[name]
 
-			if(v > scaling_factor) scaling_factor = v;
+			if(v > value_max) value_max = v;
 		}
 
 		if(draw_cached == false) {
@@ -223,7 +228,7 @@ export class Plot {
 						value -= this.station_min[name];
 
 						let plot_y0 = trace_height * i + trace_height;
-						let plot_y1 = plot_y0 - (value/scaling_factor * trace_height*2);
+						let plot_y1 = plot_y0 - (value/value_max * trace_height*2);
 
 						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
 						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
