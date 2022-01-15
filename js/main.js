@@ -117,6 +117,16 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		return r.json();
 	});
 
+	const plots = [];
+	const station_selection = new StationSelection(tremv_config.stations);
+
+	//initialize plots
+	for(let i = 0; i < tremv_config.filters.length; i++) {
+		let plot = new Plot(buffer_size, plot_container, tremv_config.stations, station_selection.selected_stations, tremv_config.filters[i], str_font, str_size);
+		plot.draw();
+		plots.push(plot);
+	}
+
 	const filter_checkbox_group_name = "selected_filter";
 
 	//initialize filter checkboxes
@@ -132,6 +142,10 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		cb.setAttribute("name", filter_checkbox_group_name);
 		cb.checked = true;
 
+		cb.onchange = function(e) {
+			plots[i].setVisibility(cb.checked);
+		}
+
 		l.setAttribute("for", id);
 		l.innerHTML = (tremv_config.filters[i][0].toFixed(1)) + " - " + (tremv_config.filters[i][1].toFixed(1));
 
@@ -142,16 +156,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	}
 
 	const filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
-
-	const plots = [];
-	const station_selection = new StationSelection(tremv_config.stations);
-
-	//initialize plots
-	for(let i = 0; i < tremv_config.filters.length; i++) {
-		let plot = new Plot(buffer_size, plot_container, tremv_config.stations, station_selection.selected_stations, tremv_config.filters[i], str_font, str_size);
-		plot.draw();
-		plots.push(plot);
-	}
 
 	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
 	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
@@ -207,6 +211,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		//
 		//TODO TODO TODO
 		//Hvernig á ég að endurtaka þetta á skinsamlegan hátt?
+		/*
 		while(true) {
 			let now = Date.now();
 			let current_min = ~~(now / min_in_ms);
@@ -239,19 +244,10 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				console.log("HTTP Error " + request.status + ": " + request.statusText);
 			}
 		}
+		*/
 	}
 
 
-	//TODO: ef query parameter-arnir eru bara stöðvar ættum við að fara beint í live mode
-	//TODO: Live update
-	//TODO: Dagsetning
-	//TODO: Filter toggle
-	//TODO: UI slider
-	//
-	//TODO: Live toggle
-	//TODO: Date picker(sem disable-ast þegar þú togglar
-	//TODO: Ætti að vera einhver svona tab???
-	//TODO: Verify-a að við séum að fá allt rétta dótið frá(as in er tímastimplarnir á gögnunum þeir sem við vildum?)
 
 	/*
 	(async function() {

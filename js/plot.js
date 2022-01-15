@@ -44,10 +44,6 @@ export class Plot {
 
 		div_container.appendChild(this.plot_div);
 
-		this.zero_in_transform = Math.exp(0);
-		this.y_transform = (x) => Math.log(this.zero_in_transform + x);
-
-
 		//so you can reference this object from within the event handlers.
 		let plot_object = this;
 
@@ -107,7 +103,7 @@ export class Plot {
 		let v = Math.abs(value);
 
 		if(v > 0.0) {
-			v = this.y_transform(v);
+			v = Math.sqrt(Math.log(v+Math.exp(0)) * 1000);
 			if(v > this.station_max[station_name]) this.station_max[station_name] = v;
 			if(v < this.station_min[station_name]) this.station_min[station_name] = v;
 		}
@@ -168,13 +164,14 @@ export class Plot {
 		this.canvas.height = height;
 		this.canvas.width = width;
 
-		let global_max_value = -Number.MAX_SAFE_INTEGER;
+		let scaling_factor = -Number.MAX_SAFE_INTEGER;
 
 		for(let i = 0; i < this.selected_stations.length; i++) {
 			let name = this.selected_stations[i];
+			//we clip values by the min when we are plotting so this is the scaling factor
 			let v = this.station_max[name] - this.station_min[name]
 
-			if(v > global_max_value) global_max_value = v;
+			if(v > scaling_factor) scaling_factor = v;
 		}
 
 		if(draw_cached == false) {
@@ -226,7 +223,7 @@ export class Plot {
 						value -= this.station_min[name];
 
 						let plot_y0 = trace_height * i + trace_height;
-						let plot_y1 = plot_y0 - (value/global_max_value * trace_height*2);
+						let plot_y1 = plot_y0 - (value/scaling_factor * trace_height*2);
 
 						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
 						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);

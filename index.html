@@ -11,6 +11,18 @@
 
 		<div id="control_container">
 			<fieldset class="control_section">
+				<legend>Sharing</legend>
+				<p>
+					<label for="hide_ui_checkbox">Hide Sidebar</label>
+					<input type="checkbox" id="hide_ui_checkbox">
+				</p>
+
+				<p>
+					<input type="button" id="share_link_button" value="Share">
+				</p>
+			</fieldset>
+
+			<fieldset class="control_section">
 				<legend>UI Controls</legend>
 				<p>
 					Trace Height
@@ -21,12 +33,31 @@
 				<label for="mybox">Scale To Window Height</label>
 				<input type="checkbox">
 				-->
+				<p>
+					<input type="button" id="ui_reset_button" value="Reset Slider">
+				</p>
 			</fieldset>
-			<p>
-				<input type="button" id="ui_reset_button" value="Reset UI">
-			</p>
+
+			<fieldset class="control_section">
+				<legend>Filters</legend>
+				<p id="filter_selection">
+				</p>
+			</fieldset>
 
 			<form autocomplete="off">
+				<fieldset class="control_section">
+					<legend>Time Range</legend>
+					<p>
+						<label for="time_range_live">Live</label>
+						<input type="radio" id="time_range_live" selected>
+					</p>
+					<p>
+						<label for="time_range_past">Past</label>
+						<input type="radio" id="time_range_past">
+						<input type="date" min="1995-07-02" id="datepicker" disabled>
+					</p>
+				</fieldset>
+
 				<fieldset class="control_section">
 					<legend>Stations</legend>
 					<div id="station_selection_container">
@@ -42,17 +73,11 @@
 						<div id="station_selection_list">
 						</div>
 					</div>
-				</fieldset>
 
-				<fieldset class="control_section">
-					<legend>Filters</legend>
-					<p id="filter_selection">
+					<p>
+						<input type="submit" id="controls_submit_button" value="Plot">
 					</p>
 				</fieldset>
-
-				<p>
-					<input type="submit" id="controls_submit_button" value="Plot">
-				</p>
 			</form>
 		</div>
 	</div>

@@ -42,8 +42,8 @@ body {
 .station_selection_tag {
 	cursor: pointer;
 	background-color: #C5E6A6;
-	margin: 5;
-	padding: 5;
+	margin: 3;
+	padding: 3;
 	border-radius: 3px;
 }
 
