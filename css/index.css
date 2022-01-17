@@ -5,13 +5,36 @@ body {
 
 #main_container {
 	display: flex;
+	background-color: #F2F2F8;
 }
 
-#control_container {
+#collapsed_controls {
+	display: none;
+	padding: 0px 10px;
+}
+
+#controls {
 	max-width: 300px;
 	min-width: 300px;
 	padding: 0px 10px;
-	background-color: #F2F2F8;
+}
+
+.icon {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.icon img {
+	background-color: white;
+	border: none;
+	border-radius: 8px;
+	padding: 7.5px;
+}
+
+.icon img:hover {
+	cursor: pointer;
+	background-color: #CCCCCC;
 }
 
 .control_section {

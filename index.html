@@ -9,21 +9,24 @@
 		<div id="plot_container">
 		</div>
 
-		<div id="control_container">
-			<img src="/icons/share.svg" alt="Bootstrap" width="24" height="24">
-			<img src="/icons/arrow-bar-right.svg" alt="Bootstrap" width="24" height="24">
-			<img src="/icons/arrow-bar-left.svg" alt="Bootstrap" width="24" height="24">
-			<fieldset class="control_section">
-				<legend>Sharing</legend>
-				<p>
-					<label for="hide_ui_checkbox">Hide Sidebar</label>
-					<input type="checkbox" id="hide_ui_checkbox">
-				</p>
+		<div id="collapsed_controls">
+			<p class="icon">
+				<img src="icons/share.svg" class="share_button" title="Share" width="24" height="24">
+			</p>
 
-				<p>
-					<input type="button" id="share_link_button" value="Share">
-				</p>
-			</fieldset>
+			<p class="icon">
+				<img src="icons/arrow-bar-left.svg" id="show_button" title="Show Sidebar" width="24" height="24">
+			</p>
+		</div>
+
+		<div id="controls">
+			<p class="icon">
+				<img src="icons/share.svg" class="share_button" title="Share" width="24" height="24">
+			</p>
+
+			<p class="icon">
+				<img src="icons/arrow-bar-right.svg" id="hide_button" title="Hide Sidebar" width="24" height="24">
+			</p>
 
 			<fieldset class="control_section">
 				<legend>UI Controls</legend>

@@ -19,9 +19,9 @@ function msToNextMin() {
 }
 
 function updatePlotScaling(plots, value, draw_cached=false) {
-	for(let i = 0; i < plots.length; i++) {
-		plots[i].scaling_factor = value;
-		plots[i].draw(draw_cached);
+	for(const p of plots) {
+		p.scaling_factor = value;
+		p.draw(draw_cached);
 	}
 }
 
@@ -85,9 +85,9 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			}
 		}
 
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].draw();
-			plots[i].view.scrollLeft = buffer_size;
+		for(const p of plots) {
+			p.draw();
+			p.view.scrollLeft = buffer_size;
 		}
 
 		//TODO: geta ýtt inn á milli stöðva pillna og fengið textbox þar sem þú getur skrifað eitthvað
@@ -134,15 +134,14 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 			}
 
-			for(let i = 0; i < plots.length; i++) {
-				let plot = plots[i];
-				plot.minute_offset += 1;
+			for(const p of plots) {
+				p.minute_offset += 1;
 
-				if(plot.minute_offset >= 1440) {
-					plot.minute_offset = 0;
+				if(p.minute_offset >= 1440) {
+					p.minute_offset = 0;
 				}
 
-				plot.draw();
+				p.draw();
 			}
 
 			live_timeout_id = setTimeout(request, msToNextMin());
@@ -170,8 +169,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	const current_station_selection = [];//afrit af station_selection.selected_stations sem verður til þegar við ýtum á plot takkann
 
 	//initialize plots
-	for(let i = 0; i < tremv_config.filters.length; i++) {
-		let plot = new Plot(buffer_size, plot_container, tremv_config.stations, current_station_selection, tremv_config.filters[i], str_font, str_size);
+	for(const f of tremv_config.filters) {
+		let plot = new Plot(buffer_size, plot_container, tremv_config.stations, current_station_selection, f, str_font, str_size);
 		plot.draw();
 		plots.push(plot);
 	}
@@ -218,10 +217,10 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		if(search_params.has("stations")) {
 			let stations = decodeURI(search_params.get("stations")).split(",");
 
-			for(let i = 0; i < stations.length; i++) {
-				if(tremv_config.stations.includes(stations[i])) {
-					station_selection_ui.addStation(stations[i]);
-					current_station_selection.push(stations[i]);
+			for(const s of stations) {
+				if(tremv_config.stations.includes(s)) {
+					station_selection_ui.addStation(s);
+					current_station_selection.push(s);
 				}
 			}
 
@@ -240,9 +239,9 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}
 
 		//Tökum afrit í staðinn fyrir bara reference því við viljum ekki að plotið breytist á meðan við erum að velja stöðvar
-		for(let i = 0; i < station_selection_ui.selected_stations.length; i++) {
+		for(const s of station_selection_ui.selected_stations) {
 			console.log("hello");
-			current_station_selection.push(station_selection_ui.selected_stations[i]);
+			current_station_selection.push(s);
 		}
 
 		console.log(current_station_selection);
@@ -269,23 +268,39 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	ui_plot_scaling_slider.oninput = function(e) {
 		let value = e.target.value;
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].updateScaling(value, true);
+		for(const plot of plots) {
+			plot.updateScaling(value, true);
 		}
 	}
 
 	ui_plot_scaling_slider.onchange = function(e) {
 		let value = e.target.value;
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].updateScaling(value);
+		for(const plot of plots) {
+			plot.updateScaling(value);
 		}
 	}
 
 	document.getElementById("ui_reset_button").onclick = function(e) {
-		for(let i = 0; i < plots.length; i++) {
-			plots[i].updateScaling(1);
+		for(const plot of plots) {
+			plot.updateScaling(1);
 		}
+
 		ui_plot_scaling_slider.value = 1;
+	}
+
+	document.getElementById("hide_button").onclick = function(e) {
+		document.getElementById("controls").style.display = "none";
+		document.getElementById("collapsed_controls").style.display = "block";
+	}
+
+	document.getElementById("show_button").onclick = function(e) {
+		document.getElementById("collapsed_controls").style.display = "none";
+		document.getElementById("controls").style.display = "block";
+	}
+
+	for(const element of document.getElementsByClassName("share_button")) {
+		element.onclick = function(e) {
+		}
 	}
 
 

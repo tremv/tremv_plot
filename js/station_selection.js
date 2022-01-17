@@ -46,9 +46,9 @@ export class StationSelection {
 			let re = new RegExp("^" + e.target.value);
 			let matched_stations = [];
 
-			for(let i = 0; i < class_this.available_stations.length; i++) {
-				if(re.test(class_this.available_stations[i])) {
-					matched_stations.push(class_this.available_stations[i]);
+			for(const s of class_this.available_stations) {
+				if(re.test(s)) {
+					matched_stations.push(s);
 				}
 			}
 
@@ -62,8 +62,8 @@ export class StationSelection {
 
 		this.button_all.onclick = function(e) {
 			if(class_this.selected_stations.length < class_this.available_stations.length) {
-				for(let i = 0; i < class_this.available_stations.length; i++) {
-					class_this.addStation(class_this.available_stations[i]);
+				for(const s of class_this.available_stations) {
+					class_this.addStation(s);
 				}
 
 				class_this.textbox.value = "";
@@ -94,12 +94,11 @@ export class StationSelection {
 			this.list_div.removeChild(this.list_div.children[0]);
 		}
 
-		for(let i = 0; i < stations.length; i++) {
-			let name = stations[i];
-			if(this.selected_stations.includes(name) == false) {
+		for(const s of stations) {
+			if(this.selected_stations.includes(s) == false) {
 				let option = document.createElement("a");
-				option.innerHTML = name;
-				option.value = name;//NOTE: we might want the innerHTML to be whatever so this is safer
+				option.innerHTML = s;
+				option.value = s;//NOTE: we might want the innerHTML to be whatever so this is safer
 				option.classList.add("station_selection_selectable");
 
 				let class_this = this;

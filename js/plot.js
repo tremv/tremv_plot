@@ -21,10 +21,10 @@ export class Plot {
 		this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
 		this.scaling_factor = 1;
 
-		for(let i = 0; i < available_stations.length; i++) {
-			this.data[available_stations[i]] = new utils.RingBuffer(buffer_size);
-			this.station_min[available_stations[i]] = Number.MAX_SAFE_INTEGER;
-			this.station_max[available_stations[i]] = -Number.MAX_SAFE_INTEGER;
+		for(const s of available_stations) {
+			this.data[s] = new utils.RingBuffer(buffer_size);
+			this.station_min[s] = Number.MAX_SAFE_INTEGER;
+			this.station_max[s] = -Number.MAX_SAFE_INTEGER;
 		}
 
 		this.view.classList.add("plot_view");
@@ -170,10 +170,9 @@ export class Plot {
 
 		let value_max = -Number.MAX_SAFE_INTEGER;
 
-		for(let i = 0; i < this.selected_stations.length; i++) {
-			let name = this.selected_stations[i];
+		for(const s of this.selected_stations) {
 			//we clip values by the min when we are plotting so this is what we scale all the values by
-			let v = this.station_max[name] - this.station_min[name]
+			let v = this.station_max[s] - this.station_min[s];
 
 			if(v > value_max) value_max = v;
 		}
