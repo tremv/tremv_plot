@@ -300,6 +300,9 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	for(const element of document.getElementsByClassName("share_button")) {
 		element.onclick = function(e) {
+			console.log(window.location);
+			//TODO: þetta virkar bara í gegnum HTTPS :(
+			//navigator.clipboard.writeText(window.location);
 		}
 	}
 
