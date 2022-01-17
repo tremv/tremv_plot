@@ -103,7 +103,6 @@ export class Plot {
 		this.draw(draw_cached);
 	}
 
-	//TODO: increment minute_of_day value
 	addPoint(station_name, value) {
 		let v = Math.abs(value);
 
