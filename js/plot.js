@@ -2,12 +2,11 @@ import * as utils from "./utils.js";
 
 export class Plot {
 	//TODO: create reference to the main_station_list object
-	constructor(buffer_size, div_container, available_stations, selected_stations, filter, str_font, str_size) {
+	constructor(buffer_size, div_container, selected_stations, filter, str_font, str_size) {
 		this.buffer_size = buffer_size;
 		this.data = {};
 		this.station_min = {};
 		this.station_max = {};
-		this.selected_stations = selected_stations;
 		this.filter = filter;//Nota þetta reference til að fletta upp indexinu í filters fylkinu
 		this.str_font = str_font;
 		this.str_size = str_size;
@@ -20,8 +19,7 @@ export class Plot {
 		this.minute_offset = 0;
 		this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
 		this.scaling_factor = 1;
-
-		this.setAvailableStations(available_stations);
+		this.selected_stations = selected_stations;
 
 		this.view.classList.add("plot_view");
 		this.view.appendChild(this.canvas);
@@ -84,10 +82,12 @@ export class Plot {
 		}
 	}
 
-	setAvailableStations(stations) {
-		this.available_stations = stations;
+	initBuffers(stations) {
+		this.selected_stations = stations;
 
+		//TODO: mögulega er þetta suckað fyrir garbage collection...
 		for(const s of stations) {
+			delete this.data[s];
 			this.data[s] = new utils.RingBuffer(this.buffer_size);
 		}
 	}
@@ -174,10 +174,13 @@ export class Plot {
 
 			for(const s of this.selected_stations) {
 				min_per_station[s] = Number.MAX_SAFE_INTEGER;
-				max_station = -Number.MAX_SAFE_INTEGER;
+				let max_station = -Number.MAX_SAFE_INTEGER;
 
 				for(const v of this.data[s].data) {
-					if(v < min_per_station[s]) min_per_station[s] = v;
+					if(v > 0.0) {
+						if(v < min_per_station[s]) min_per_station[s] = v;
+					}
+
 					if(v > max_station) max_station = v;
 				}
 

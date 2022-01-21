@@ -68,13 +68,21 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		let minute_of_day = range_end.getHours() * 60 + range_end.getMinutes();
 
 		for(let i = 0; i < plots.length; i++) {
-			plots[i].minute_offset = minute_of_day;
+			let p = plots[i];
+
+			p.initBuffers(stations);
+			p.minute_offset = minute_of_day;
+
+			let station_names_in_result = Object.keys(result[i]["stations"])
+
 			//loop over selected stations
 			for(let j = 0; j < stations.length; j++) {
-				let station_data = result[i]["stations"][stations[j]];
+				let name = stations[j];
 
-				for(let k = 0; k < station_data.length; k++) {
-					plots[i].addPoint(stations[j], station_data[k]);
+				if(station_names_in_result.includes(name)) {
+					for(const v of result[i]["stations"][stations[j]]) {
+						p.addPoint(stations[j], v);
+					}
 				}
 			}
 		}
@@ -164,7 +172,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	//initialize plots
 	for(const f of tremv_config.filters) {
-		let plot = new Plot(buffer_size, plot_container, tremv_config.stations, current_station_selection, f, str_font, str_size);
+		let plot = new Plot(buffer_size, plot_container, current_station_selection, f, str_font, str_size);
 		plot.draw();
 		plots.push(plot);
 	}
@@ -304,7 +312,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	datepicker.onchange = async function(e) {
 		//frá mín 0 til síðustu mín dagsins
 		const range_start = new Date(e.target.value);
-		const range_end = new Date(range_start.getTime() + utils.minutesInMs(1439));
+		const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
 
 		let json_query = {};
 		json_query["range_start"] = range_start.toJSON();
