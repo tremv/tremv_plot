@@ -21,10 +21,7 @@ export class Plot {
 		this.default_min_trace_height = ~~(2160/83); //the min height of an individual station plot. Just based on what they plot in the monitoring room
 		this.scaling_factor = 1;
 
-		for(const s of available_stations) {
-			this.data[s] = new utils.RingBuffer(buffer_size);
-			this.initMinMax(s);
-		}
+		this.setAvailableStations(available_stations);
 
 		this.view.classList.add("plot_view");
 		this.view.appendChild(this.canvas);
@@ -87,9 +84,12 @@ export class Plot {
 		}
 	}
 
-	initMinMax(station) {
-		this.station_min[station] = Number.MAX_SAFE_INTEGER;
-		this.station_max[station] = -Number.MAX_SAFE_INTEGER;
+	setAvailableStations(stations) {
+		this.available_stations = stations;
+
+		for(const s of stations) {
+			this.data[s] = new utils.RingBuffer(this.buffer_size);
+		}
 	}
 
 	setVisibility(visible) {
@@ -109,13 +109,7 @@ export class Plot {
 
 	addPoint(station_name, value) {
 		let v = Math.abs(value);
-
-		if(v > 0.0) {
-			v = Math.sqrt(Math.log(v+Math.exp(0)) * 1000);
-			if(v > this.station_max[station_name]) this.station_max[station_name] = v;
-			if(v < this.station_min[station_name]) this.station_min[station_name] = v;
-		}
-
+		if(v > 0.0) v = Math.sqrt(Math.log(v+Math.exp(0)) * 1000);
 		this.data[station_name].push(v);
 	}
 
@@ -172,16 +166,25 @@ export class Plot {
 		this.canvas.height = height;
 		this.canvas.width = width;
 
-		let value_max = -Number.MAX_SAFE_INTEGER;
-
-		for(const s of this.selected_stations) {
-			//we clip values by the min when we are plotting so this is what we scale all the values by
-			let v = this.station_max[s] - this.station_min[s];
-
-			if(v > value_max) value_max = v;
-		}
-
 		if(draw_cached == false) {
+			//Reikna min og max gildi. Við þurfum að geyma min gildi per stöð því við klippum öll gildi með min gildi stöðvar.
+			//Hins vegar þurfum við bara að vita stærsta clipped max globally af því allt er skalað með því gildi.
+			let min_per_station = {};
+			let clipped_max_global = -Number.MAX_SAFE_INTEGER;
+
+			for(const s of this.selected_stations) {
+				min_per_station[s] = Number.MAX_SAFE_INTEGER;
+				max_station = -Number.MAX_SAFE_INTEGER;
+
+				for(const v of this.data[s].data) {
+					if(v < min_per_station[s]) min_per_station[s] = v;
+					if(v > max_station) max_station = v;
+				}
+
+				let clipped_max = max_station - min_per_station[s];
+				if(clipped_max > clipped_max_global) clipped_max_global = clipped_max;
+			}
+
 			this.back_canvas.height = height;
 			this.back_canvas.width = width;
 			
@@ -224,13 +227,14 @@ export class Plot {
 						value = this.data[name].get(x);
 					}catch(e) {
 						console.log(e + " " + x + ": " + this.data[name].length);
+						console.log("afhverju :(");
 					}
 
 					if(value > 0) {
-						value -= this.station_min[name];
+						value -= min_per_station[name];
 
 						let plot_y0 = trace_height * i + trace_height;
-						let plot_y1 = plot_y0 - (value/value_max * trace_height*2);
+						let plot_y1 = plot_y0 - (value/clipped_max_global * trace_height*2);
 
 						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
 						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);

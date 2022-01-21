@@ -61,12 +61,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	//TODO: disable-a ui á meðan þetta er í gangi
 	async function fillPlots(range_start, range_end, stations) {
-		for(const p of plots) {
-			for(const s of stations) {
-				p.initMinMax(s);
-			}
-		}
-
 		let result = await rangeRequest(range_start, range_end, stations);
 		console.log(result);
 
@@ -157,6 +151,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	}
 
 
+	//INITIALIZATION BEGINS HERE
+
 	//TODO: error handling!!! HTTP status!!!
 	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
 		return r.json();
@@ -240,8 +236,12 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	for(const element of document.getElementsByClassName("share_button")) {
 		element.onclick = function(e) {
 			console.log(window.location);
-			//TODO: þetta virkar bara í gegnum HTTPS :(
-			//navigator.clipboard.writeText(window.location);
+			if("clipboard" in navigator) {
+				navigator.clipboard.writeText(window.location);
+				alert("Link copied to clipboard!");
+			}else {
+				alert("No HTTPS :(");
+			}
 		}
 	}
 
