@@ -88,6 +88,20 @@ export class StationSelection {
 		}
 	}
 
+	//if we have already selected some stations and they are available here, then they should be kept 
+	resetAvailableStations(new_stations) {
+		for(let i = 0; i < this.selected_stations.length; i++) {
+			//getum lent í því að þurfa eyða mörgum entries á sama index-i svo við gerum þetta svona.
+			//þurfum líka að athuga lengdarskilyrðið svo við séum ekki að index-a út fyrir fylkið.
+			while(i < this.selected_stations.length && new_stations.includes(this.selected_stations[i]) == false) {
+				this.removeStation(i);
+			}
+		}
+
+		this.available_stations = new_stations;
+		this.generateSelectionList(new_stations);
+	}
+
 	//framkallar html element með lista af stöðvum sem er hægt að velja úr
 	generateSelectionList(stations) {
 		while(this.list_div.children.length) {

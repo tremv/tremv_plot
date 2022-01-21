@@ -23,8 +23,7 @@ export class Plot {
 
 		for(const s of available_stations) {
 			this.data[s] = new utils.RingBuffer(buffer_size);
-			this.station_min[s] = Number.MAX_SAFE_INTEGER;
-			this.station_max[s] = -Number.MAX_SAFE_INTEGER;
+			this.initMinMax(s);
 		}
 
 		this.view.classList.add("plot_view");
@@ -86,6 +85,11 @@ export class Plot {
 
 			utils.drawText(context, hour_str + ":" + minute_str, x+text_offset, e.layerY-text_offset, plot_object.str_font, plot_object.str_size, "#000000");
 		}
+	}
+
+	initMinMax(station) {
+		this.station_min[station] = Number.MAX_SAFE_INTEGER;
+		this.station_max[station] = -Number.MAX_SAFE_INTEGER;
 	}
 
 	setVisibility(visible) {

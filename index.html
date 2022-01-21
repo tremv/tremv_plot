@@ -54,15 +54,19 @@
 				<fieldset class="control_section">
 					<legend>Stations</legend>
 					<i>Select time range:</i>
-					<p>
-						<label for="time_range_live">Live</label>
-						<input type="radio" id="time_range_live" name="time_range" checked>
-					</p>
-					<p>
-						<label for="time_range_past">Past</label>
-						<input type="radio" id="time_range_past" name="time_range">
-						<input type="date" min="1995-07-02" id="datepicker" disabled>
-					</p>
+
+					<table>
+						<tr>
+							<td><label for="time_range_live">Live</label></td>
+							<td><input type="radio" id="time_range_live" name="time_range" checked></td>
+						</tr>
+						<tr>
+							<td><label for="time_range_past">Past</label></td>
+							<td><input type="radio" id="time_range_past" name="time_range"></td>
+							<td><input type="date" min="1995-07-02" id="datepicker" disabled></td>
+						</tr>
+					</table>
+
 					<div id="station_selection_container">
 						<p>
 							<input type="button" value="Select all stations" id="station_selection_button_all">

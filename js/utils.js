@@ -4,6 +4,27 @@ export function floatCompare(x, y) {
 	return (Math.abs(x - y) < eps);
 }
 
+export function daysInMs(days) {
+	return 24*60*60*1000*days;
+}
+
+export function hoursInMs(hours) {
+	return 60*60*1000*hours;
+}
+
+export function minutesInMs(minutes) {
+	return 60*1000*minutes;
+}
+
+export function msToNextMin() {
+	let min_in_ms = 1000 * 60;
+	let now = Date.now();
+	let current_min = ~~(now / min_in_ms);
+	let next_min_in_ms = (current_min + 1) * min_in_ms;
+
+	return next_min_in_ms - now;
+}
+
 //a container with a fixed size that overwrites elements when there is no space left
 export class RingBuffer {
 	constructor(size) {

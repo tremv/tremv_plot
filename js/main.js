@@ -5,19 +5,6 @@ import * as utils from "./utils.js";
 import {StationSelection} from "./station_selection.js";
 import {Plot} from "./plot.js";
 
-function sleep(ms) {
-	return new Promise(f => setTimeout(f, ms));
-}
-
-function msToNextMin() {
-	let min_in_ms = 1000 * 60;
-	let now = Date.now();
-	let current_min = ~~(now / min_in_ms);
-	let next_min_in_ms = (current_min + 1) * min_in_ms;
-
-	return next_min_in_ms - now;
-}
-
 function updatePlotScaling(plots, value, draw_cached=false) {
 	for(const p of plots) {
 		p.scaling_factor = value;
@@ -26,6 +13,20 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 }
 
 (async function() {
+	const base_url = window.location.origin;
+	const buffer_size = 1440;
+	const str_font = "Arial";
+	const str_size = 14;
+
+	const plot_container = document.getElementById("plot_container");
+	const filter_selection = document.getElementById("filter_selection");
+	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
+	ui_plot_scaling_slider.value = 1;
+	let live_timeout_id = 0;
+	let live_mode = document.getElementById("time_range_live").checked;
+
+	const plots = [];//heldur utan um plot hluti
+
 	//við erum bara að pæla að sækja range sem jafngildir einum degi, því plotting strúktúrinn bíður ekki upp á það eins og er
 	async function rangeRequest(range_start, range_end, stations) {
 		let json_query = {};
@@ -52,20 +53,19 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			const range_result = await response.json();
 			return range_result;
 		}else {
-			console.log("HTTP Error " + request.status + ": " + request.statusText);
+			console.log("HTTP Error " + response.status + ": " + response.statusText);
 		}
 
 		return null;
 	}
 
 	//TODO: disable-a ui á meðan þetta er í gangi
-	async function backfillPlots(stations, plots) {
-		//TODO: láta athugun á query params gerast þegar maður ræsir síðuna
-		//TODO: include ui settings in query string
-		const two_min = 1000*60*2;
-		const range_end = new Date(Date.now() - two_min);
-		const day_in_ms = 60*60*24 * 1000;
-		const range_start = new Date(range_end - day_in_ms);
+	async function fillPlots(range_start, range_end, stations) {
+		for(const p of plots) {
+			for(const s of stations) {
+				p.initMinMax(s);
+			}
+		}
 
 		let result = await rangeRequest(range_start, range_end, stations);
 		console.log(result);
@@ -93,11 +93,19 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		//TODO: geta ýtt inn á milli stöðva pillna og fengið textbox þar sem þú getur skrifað eitthvað
 	}
 
+	async function backfillPlots(stations) {
+		const two_min = utils.minutesInMs(2);
+		const range_end = new Date(Date.now() - two_min);
+		const range_start = new Date(range_end - utils.daysInMs(1));
+
+		fillPlots(range_start, range_end, stations);
+	}
+
 	async function setLiveUpdate() {
 		clearTimeout(live_timeout_id);
 
 		live_timeout_id = setTimeout(async function request() {
-			console.log(Date.now());
+			console.log(new Date());
 
 			let json_query = {};
 			json_query["stations"] = current_station_selection;
@@ -124,7 +132,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 
 			}else {
-				console.log("HTTP Error " + request.status + ": " + request.statusText);
+				console.log("HTTP Error " + response.status + ": " + response.statusText);
 
 				for(let i = 0; i < plots.length; i++) {
 					for(let j = 0; j < current_station_selection.length; j++) {
@@ -144,28 +152,18 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				p.draw();
 			}
 
-			live_timeout_id = setTimeout(request, msToNextMin());
-		}, msToNextMin());
+			live_timeout_id = setTimeout(request, utils.msToNextMin());
+		}, utils.msToNextMin());
 	}
 
-	const base_url = window.location.origin;
-	const buffer_size = 1440;
-	const str_font = "Arial";
-	const str_size = 14;
-
-	const plot_container = document.getElementById("plot_container");
-	const filter_selection = document.getElementById("filter_selection");
-	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
-	ui_plot_scaling_slider.value = 1;
-	let live_timeout_id = 0;
 
 	//TODO: error handling!!! HTTP status!!!
 	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
 		return r.json();
 	});
 
-	const plots = [];
 	const station_selection_ui = new StationSelection(tremv_config.stations);
+	//NOTE: þurfum að hafa reference hér í listan því live update þarf hann
 	const current_station_selection = [];//afrit af station_selection.selected_stations sem verður til þegar við ýtum á plot takkann
 
 	//initialize plots
@@ -183,7 +181,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		let cb = document.createElement("input");
 		let l = document.createElement("label");
 
-		//TODO: setja eitthvað on input changes sem breytir plots[i].setVisibility(checked);
 		let id = "filter_checkbox" + i;
 		cb.setAttribute("id", id);
 		cb.setAttribute("type", "checkbox");
@@ -208,7 +205,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
 	//Backfill request
 
-	//TODO: setja í live mode ef við erum ekki með date request í query strengnum
+	//TODO: ef við með date="isodate" í query param ættum við að fara að skoða ákveðna dagsetningu
 	//show stations from the query string
 	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
 		let query_string = window.location.search;
@@ -224,46 +221,28 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 			}
 
-			backfillPlots(current_station_selection, plots);
+			backfillPlots(current_station_selection);
 			setLiveUpdate();//TODO: athuga hvort við séum í live mode eða ekki og gera eitthvað byggt á því
 		}
 	}
 
-	const station_form = document.querySelector("form");
+	//UI Controls
+	document.getElementById("hide_button").onclick = function(e) {
+		document.getElementById("controls").style.display = "none";
+		document.getElementById("collapsed_controls").style.display = "block";
+	}
 
-	station_form.onsubmit = async function(e) {
-		e.preventDefault();
+	document.getElementById("show_button").onclick = function(e) {
+		document.getElementById("collapsed_controls").style.display = "none";
+		document.getElementById("controls").style.display = "block";
+	}
 
-		while(current_station_selection.length > 0) {
-			current_station_selection.pop();
+	for(const element of document.getElementsByClassName("share_button")) {
+		element.onclick = function(e) {
+			console.log(window.location);
+			//TODO: þetta virkar bara í gegnum HTTPS :(
+			//navigator.clipboard.writeText(window.location);
 		}
-
-		//Tökum afrit í staðinn fyrir bara reference því við viljum ekki að plotið breytist á meðan við erum að velja stöðvar
-		for(const s of station_selection_ui.selected_stations) {
-			console.log("hello");
-			current_station_selection.push(s);
-		}
-
-		console.log(current_station_selection);
-
-		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-			let query_string = window.location.search;
-			let search_params = new URLSearchParams(query_string);
-			let stations_str = "";
-
-			for(let i = 0; i < current_station_selection.length; i++) {
-				stations_str += current_station_selection[i];
-				if(i !== current_station_selection.length-1) {
-					stations_str += ",";
-				}
-			}
-
-			search_params.set("stations", stations_str);
-			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
-		}
-
-		backfillPlots(current_station_selection, plots);
-		setLiveUpdate();//TODO: athuga hvort við séum í live mode eða ekki og gera eitthvað byggt á því
 	}
 
 	ui_plot_scaling_slider.oninput = function(e) {
@@ -288,21 +267,111 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		ui_plot_scaling_slider.value = 1;
 	}
 
-	document.getElementById("hide_button").onclick = function(e) {
-		document.getElementById("controls").style.display = "none";
-		document.getElementById("collapsed_controls").style.display = "block";
+
+	//time range selection UI
+	const radio_button_live = document.getElementById("time_range_live");
+	const radio_button_past = document.getElementById("time_range_past");
+	const datepicker = document.getElementById("datepicker");
+	const yesterday = new Date(new Date().getTime() - utils.daysInMs(1));
+
+	const max_year = yesterday.getFullYear().toString();
+	const max_month = yesterday.getMonth() + 1;
+	const max_day = yesterday.getDate();
+
+	let max_date = max_year + "-";
+
+	if(max_month < 10) max_date += "0";
+	max_date += max_month + "-";
+
+	if(max_day < 10) max_date += "0";
+	max_date += max_day;
+
+	datepicker.max = max_date;
+
+	radio_button_live.onchange = function(e) {
+		datepicker.value = "";
+		datepicker.disabled = true;
+		live_mode = true;
 	}
 
-	document.getElementById("show_button").onclick = function(e) {
-		document.getElementById("collapsed_controls").style.display = "none";
-		document.getElementById("controls").style.display = "block";
+	radio_button_past.onchange = function(e) {
+		datepicker.disabled = false;
+		live_mode = false;
 	}
 
-	for(const element of document.getElementsByClassName("share_button")) {
-		element.onclick = function(e) {
-			console.log(window.location);
-			//TODO: þetta virkar bara í gegnum HTTPS :(
-			//navigator.clipboard.writeText(window.location);
+	//það sem ætti eiginlega að gerast hér er að við ættum að varðveita listann sem notandinn var með á meðan onblur er ekki búið að ske,
+	//því það gæti verið að notandinn sé að athuga hverjar af þeim stöðvum sem eru núna valdar séu til á þeim dagsetningum sem eru valdar...
+	datepicker.onchange = async function(e) {
+		//frá mín 0 til síðustu mín dagsins
+		const range_start = new Date(e.target.value);
+		const range_end = new Date(range_start.getTime() + utils.minutesInMs(1439));
+
+		let json_query = {};
+		json_query["range_start"] = range_start.toJSON();
+		json_query["range_end"] = range_end.toJSON();
+
+		const name_response = await fetch(base_url + "/api/stations_in_timerange/",
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json;charset=utf-8'
+				},
+				body: JSON.stringify(json_query)
+			}
+		);
+
+		//TODO: error handling!!! HTTP status!!!
+		if(name_response.ok) {
+			const stations_in_range = await name_response.json();
+			station_selection_ui.resetAvailableStations(Object.keys(stations_in_range).sort());
+		}else {
+			console.log("Failed to get station list..." + name_response.status + ": " + name_response.statusText);
+		}
+	}
+
+
+	const station_form = document.querySelector("form");
+
+	station_form.onsubmit = async function(e) {
+		e.preventDefault();
+
+		while(current_station_selection.length > 0) {
+			current_station_selection.pop();
+		}
+
+		//Tökum afrit í staðinn fyrir bara reference því við viljum ekki að plotið breytist á meðan við erum að velja stöðvar
+		for(const s of station_selection_ui.selected_stations) {
+			current_station_selection.push(s);
+		}
+
+		console.log(current_station_selection);
+
+		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+			let query_string = window.location.search;
+			let search_params = new URLSearchParams(query_string);
+			let stations_str = "";
+
+			for(let i = 0; i < current_station_selection.length; i++) {
+				stations_str += current_station_selection[i];
+				if(i !== current_station_selection.length-1) {
+					stations_str += ",";
+				}
+			}
+
+			search_params.set("stations", stations_str);
+			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
+		}
+
+		if(live_mode) {
+			backfillPlots(current_station_selection);
+			setLiveUpdate();//TODO: athuga hvort við séum í live mode eða ekki og gera eitthvað byggt á því
+		}else {
+			clearTimeout(live_timeout_id);
+
+			const range_start = new Date(datepicker.value);
+			const range_end = new Date(range_start.getTime() + utils.minutesInMs(1439));
+
+			fillPlots(range_start, range_end, current_station_selection);
 		}
 	}
 
