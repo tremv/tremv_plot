@@ -377,7 +377,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			clearTimeout(live_timeout_id);
 
 			const range_start = new Date(datepicker.value);
-			const range_end = new Date(range_start.getTime() + utils.minutesInMs(1439));
+			const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
 
 			fillPlots(range_start, range_end, current_station_selection);
 		}
