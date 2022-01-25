@@ -25,6 +25,28 @@ export function msToNextMin() {
 	return next_min_in_ms - now;
 }
 
+export function copyToClipboard(str) {
+	if("clipboard" in navigator) {
+		navigator.clipboard.writeText(str);
+	}else {
+		let temp = document.createElement("input");
+		document.body.appendChild(temp);
+		temp.value = str;
+		temp.select();
+		document.execCommand("copy");
+		document.body.removeChild(temp);
+	}
+}
+
+export function getURLParams() {
+	return new URLSearchParams(window.location.search);
+}
+
+//params er URLSearchParams hlutur sem fengin var með getURLParams
+export function setURLParams(params) {
+	history.pushState(null, "", window.location.pathname + "?" + params.toString());
+}
+
 //a container with a fixed size that overwrites elements when there is no space left
 export class RingBuffer {
 	constructor(size) {

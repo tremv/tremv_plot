@@ -27,6 +27,26 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	const plots = [];//heldur utan um plot hluti
 
+	//time range selection UI
+	const radio_button_live = document.getElementById("time_range_live");
+	const radio_button_past = document.getElementById("time_range_past");
+	const datepicker = document.getElementById("datepicker");
+	const yesterday = new Date(new Date().getTime() - utils.daysInMs(1));
+
+	const max_year = yesterday.getFullYear().toString();
+	const max_month = yesterday.getMonth() + 1;
+	const max_day = yesterday.getDate();
+
+	let max_date = max_year + "-";
+
+	if(max_month < 10) max_date += "0";
+	max_date += max_month + "-";
+
+	if(max_day < 10) max_date += "0";
+	max_date += max_day;
+
+	datepicker.max = max_date;
+
 	//við erum bara að pæla að sækja range sem jafngildir einum degi, því plotting strúktúrinn bíður ekki upp á það eins og er
 	async function rangeRequest(range_start, range_end, stations) {
 		let json_query = {};
@@ -158,6 +178,21 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}, utils.msToNextMin());
 	}
 
+	function hideSidebar() {
+		document.getElementById("controls").style.display = "none";
+		document.getElementById("collapsed_controls").style.display = "block";
+		let search_params = utils.getURLParams();
+		search_params.set("sidebar", false);
+		utils.setURLParams(search_params);
+	}
+
+	function showSidebar() {
+		document.getElementById("collapsed_controls").style.display = "none";
+		document.getElementById("controls").style.display = "block";
+		let search_params = utils.getURLParams();
+		search_params.set("sidebar", true);
+		utils.setURLParams(search_params);
+	}
 
 	//INITIALIZATION BEGINS HERE
 
@@ -177,7 +212,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		plots.push(plot);
 	}
 
-	const filter_checkbox_group_name = "selected_filter";
+	const filter_checkbox_group_name = "filter_checkboxes";
 
 	//initialize filter checkboxes
 	for(let i = 0; i < tremv_config.filters.length; i++) {
@@ -193,6 +228,17 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 		cb.onchange = function(e) {
 			plots[i].setVisibility(cb.checked);
+
+			let search_params = utils.getURLParams();
+			let filter_state = "";
+
+			for(let j = 0; j < filter_checkboxes.length; j++) {
+				filter_state += filter_checkboxes[j].checked;
+				if(j !== filter_checkboxes.length-1) filter_state += ",";
+			}
+
+			search_params.set("filters", filter_state);
+			utils.setURLParams(search_params);
 		}
 
 		l.setAttribute("for", id);
@@ -204,6 +250,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		filter_selection.appendChild(p);
 	}
 
+	let filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
+
 	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
 	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
 	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
@@ -212,8 +260,13 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	//TODO: ef við með date="isodate" í query param ættum við að fara að skoða ákveðna dagsetningu
 	//show stations from the query string
 	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-		let query_string = window.location.search;
-		let search_params = new URLSearchParams(query_string);
+		let search_params = utils.getURLParams();
+
+		if(search_params.has("sidebar")) {
+			if(search_params.get("sidebar") == "false") {
+				hideSidebar();
+			}
+		}
 
 		if(search_params.has("stations")) {
 			let stations = decodeURI(search_params.get("stations")).split(",");
@@ -225,31 +278,54 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 			}
 
-			backfillPlots(current_station_selection);
-			setLiveUpdate();//TODO: athuga hvort við séum í live mode eða ekki og gera eitthvað byggt á því
+			if(search_params.has("filters")) {
+				let filter_state = decodeURI(search_params.get("filters")).split(",");
+
+				for(let i = 0; i < filter_state.length; i++) {
+					if(filter_state[i] === "false") {
+						plots[i].setVisibility(false);
+						filter_checkboxes[i].checked = false;
+					}
+				}
+			}
+
+			if(search_params.has("date")) {
+				radio_button_past.checked = true;
+				clearTimeout(live_timeout_id);
+
+				//TODO: það er óþægilega mikið code duplication í gangi hérna
+				datepicker.disabled = false;
+				live_mode = false;
+				let date = decodeURI(search_params.get("date"));
+				datepicker.value = date;
+
+				const range_start = new Date(date);
+				const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
+
+				fillPlots(range_start, range_end, current_station_selection);
+			}
+
+			if(live_mode) {
+				backfillPlots(current_station_selection);
+				setLiveUpdate();
+			}else {
+			}
 		}
 	}
 
 	//UI Controls
 	document.getElementById("hide_button").onclick = function(e) {
-		document.getElementById("controls").style.display = "none";
-		document.getElementById("collapsed_controls").style.display = "block";
+		hideSidebar();
 	}
 
 	document.getElementById("show_button").onclick = function(e) {
-		document.getElementById("collapsed_controls").style.display = "none";
-		document.getElementById("controls").style.display = "block";
+		showSidebar();
 	}
 
 	for(const element of document.getElementsByClassName("share_button")) {
 		element.onclick = function(e) {
-			console.log(window.location);
-			if("clipboard" in navigator) {
-				navigator.clipboard.writeText(window.location);
-				alert("Link copied to clipboard!");
-			}else {
-				alert("No HTTPS :(");
-			}
+			utils.copyToClipboard(window.location.href);
+			alert("Link copied to clipboard!");
 		}
 	}
 
@@ -275,31 +351,18 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		ui_plot_scaling_slider.value = 1;
 	}
 
-
-	//time range selection UI
-	const radio_button_live = document.getElementById("time_range_live");
-	const radio_button_past = document.getElementById("time_range_past");
-	const datepicker = document.getElementById("datepicker");
-	const yesterday = new Date(new Date().getTime() - utils.daysInMs(1));
-
-	const max_year = yesterday.getFullYear().toString();
-	const max_month = yesterday.getMonth() + 1;
-	const max_day = yesterday.getDate();
-
-	let max_date = max_year + "-";
-
-	if(max_month < 10) max_date += "0";
-	max_date += max_month + "-";
-
-	if(max_day < 10) max_date += "0";
-	max_date += max_day;
-
-	datepicker.max = max_date;
-
+	//TODO: óþægilega mikið code duplication með þetta search param dót
 	radio_button_live.onchange = function(e) {
 		datepicker.value = "";
 		datepicker.disabled = true;
 		live_mode = true;
+
+		let search_params = utils.getURLParams();
+		if(search_params.has("date")) {
+			search_params.delete("date");
+		}
+
+		utils.setURLParams(search_params);
 	}
 
 	radio_button_past.onchange = function(e) {
@@ -335,8 +398,11 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}else {
 			console.log("Failed to get station list..." + name_response.status + ": " + name_response.statusText);
 		}
-	}
 
+		let search_params = utils.getURLParams();
+		search_params.set("date", e.target.value);
+		utils.setURLParams(search_params);
+	}
 
 	const station_form = document.querySelector("form");
 
@@ -354,35 +420,29 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 		console.log(current_station_selection);
 
+		//add query string for selected stations
 		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-			let query_string = window.location.search;
-			let search_params = new URLSearchParams(query_string);
-			let stations_str = "";
-
-			for(let i = 0; i < current_station_selection.length; i++) {
-				stations_str += current_station_selection[i];
-				if(i !== current_station_selection.length-1) {
-					stations_str += ",";
-				}
-			}
+			let search_params = utils.getURLParams();
+			let stations_str = current_station_selection.join(",");
+			console.log(stations_str);
 
 			search_params.set("stations", stations_str);
-			history.pushState(null, "", window.location.pathname + "?" + search_params.toString());
+			utils.setURLParams(search_params);
 		}
 
 		if(live_mode) {
 			backfillPlots(current_station_selection);
-			setLiveUpdate();//TODO: athuga hvort við séum í live mode eða ekki og gera eitthvað byggt á því
+			setLiveUpdate();
 		}else {
 			clearTimeout(live_timeout_id);
 
 			const range_start = new Date(datepicker.value);
+			//TODO: athuga hvort að það breyti einhverju að minnka range_end(serverinn sækir alltaf tvo daga...)
 			const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
 
 			fillPlots(range_start, range_end, current_station_selection);
 		}
 	}
-
 
 	//TODO: muna að disable-a UI-ið á meðan það er verið að bíða eftir response...
 
