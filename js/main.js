@@ -36,6 +36,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	const max_year = yesterday.getFullYear().toString();
 	const max_month = yesterday.getMonth() + 1;
 	const max_day = yesterday.getDate();
+	let date_container = null;
 
 	let max_date = max_year + "-";
 
@@ -81,8 +82,15 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 	//TODO: disable-a ui á meðan þetta er í gangi
 	async function fillPlots(range_start, range_end, stations) {
+		let load_container = document.getElementById("load_container");
+		load_container.classList.remove("done_loading");
+		load_container.classList.add("loading");
+
 		let result = await rangeRequest(range_start, range_end, stations);
 		console.log(result);
+
+		load_container.classList.remove("loading");
+		load_container.classList.add("done_loading");
 
 		//búa til offset þannig að tímalínan er á réttum stað
 		let minute_of_day = range_end.getHours() * 60 + range_end.getMinutes();
@@ -127,7 +135,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		clearTimeout(live_timeout_id);
 
 		live_timeout_id = setTimeout(async function request() {
-			console.log(new Date());
+			console.log("updating plot");
+			updateDateLabel();
 
 			let json_query = {};
 			json_query["stations"] = current_station_selection;
@@ -194,6 +203,37 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		utils.setURLParams(search_params);
 	}
 
+	function updateDateLabel() {
+		if(date_container) date_container.remove();
+
+		let visible_plot = null;
+
+		for(const p of plots) {
+			if(p.visible) visible_plot = p;
+		}
+
+		date_container = document.createElement("div");
+		date_container.id = "date_container";
+
+		let label = document.createElement("div");
+		let timestamp = null;
+
+		if(live_mode) {
+			let live_icon = document.createElement("div");
+			live_icon.classList.add("plot_live");
+			date_container.appendChild(live_icon);
+
+			timestamp = new Date();
+		}else {
+			timestamp = new Date(datepicker.value);
+		}
+
+		label.innerHTML = timestamp.getDate() + "/" + (timestamp.getMonth()+1) + "/" + timestamp.getFullYear();
+		date_container.appendChild(label);
+
+		visible_plot.title.appendChild(date_container);
+	}
+
 	//INITIALIZATION BEGINS HERE
 
 	//TODO: error handling!!! HTTP status!!!
@@ -228,6 +268,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 		cb.onchange = function(e) {
 			plots[i].setVisibility(cb.checked);
+
+			updateDateLabel();
 
 			let search_params = utils.getURLParams();
 			let filter_state = "";
@@ -294,6 +336,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				clearTimeout(live_timeout_id);
 
 				//TODO: það er óþægilega mikið code duplication í gangi hérna
+				//TODO: kannski er þetta live_mode = og datepicker... óþarfi af því ég stilli checked fyrir ofan og þá ætti þetta að tigger-a eventinn?
 				datepicker.disabled = false;
 				live_mode = false;
 				let date = decodeURI(search_params.get("date"));
@@ -303,14 +346,13 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
 
 				fillPlots(range_start, range_end, current_station_selection);
-			}
-
-			if(live_mode) {
+			}else {
 				backfillPlots(current_station_selection);
 				setLiveUpdate();
-			}else {
 			}
 		}
+
+		updateDateLabel();
 	}
 
 	//UI Controls
@@ -356,6 +398,8 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		datepicker.value = "";
 		datepicker.disabled = true;
 		live_mode = true;
+
+		station_selection_ui.resetAvailableStations(tremv_config.stations);
 
 		let search_params = utils.getURLParams();
 		if(search_params.has("date")) {
@@ -442,18 +486,13 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 
 			fillPlots(range_start, range_end, current_station_selection);
 		}
+
+		updateDateLabel();
 	}
 
 	//TODO: muna að disable-a UI-ið á meðan það er verið að bíða eftir response...
 
 	//TODO: date_labelið ætti að vera breytanlegt og ættið að fara í plot_title divið(gera fall setDate sem býr til elementið ef það er ekki til, stillir það alltaf)
-
-	/*
-	let date_label = document.createElement("div");
-	let starttime = new Date();
-	date_label.innerHTML = starttime.getDate() + "/" + (starttime.getMonth()+1) + "/" + starttime.getFullYear();
-	plots[plots.length-1].title.appendChild(date_label);
-	*/
 
 	//TODO: þarf ekki einhver icon eða eitthvað sem segir að við séum að bíða eftir einhverju?
 
