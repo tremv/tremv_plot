@@ -5,22 +5,16 @@ import * as utils from "./utils.js";
 import {StationSelection} from "./station_selection.js";
 import {Plot} from "./plot.js";
 
-function updatePlotScaling(plots, value, draw_cached=false) {
-	for(const p of plots) {
-		p.scaling_factor = value;
-		p.draw(draw_cached);
-	}
-}
-
 (async function() {
 	const base_url = window.location.origin;
 	const buffer_size = 1440;
 	const str_font = "Arial";
 	const str_size = 14;
-	let live_timeout_id = 0;
 	let date_container = null;
 	const plots = [];//heldur utan um plot hluti
 	const current_station_selection = [];//afrit af station_selection.selected_stations sem verður til þegar við ýtum á plot takkann
+	let live_timeout_id = 0;
+	let resize_timeout_id = 0;
 
 	//TODO: error handling!!! HTTP status!!!
 	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
@@ -191,6 +185,55 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		return null;
 	}
 
+	async function getTriggers(range_start, range_end) {
+		let json_query = {};
+
+		json_query["range_start"] = range_start.toJSON();
+		json_query["range_end"] = range_end.toJSON();
+
+		console.log("getting catalog from " + range_start + " to " + range_end);
+
+		const response = await fetch(base_url + "/api/catalog_range/",
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json;charset=utf-8'
+				},
+				body: JSON.stringify(json_query)
+			}
+		);
+
+		//TODO: error handling!!! HTTP status!!!
+		if(response.ok) {
+			const result = await response.json();
+			return result;
+		}else {
+			console.log("HTTP Error " + response.status + ": " + response.statusText);
+		}
+
+		return null;
+	}
+
+	function prepareTriggers(triggers, filter, range_start) {
+		if(triggers === null) return null;
+
+		let trigger_table = {};
+
+		for(const t of triggers) {
+			//NOTE: ef range_start er stærra en timestamp myndi maður fá rugl index...
+			const timestamp = new Date(t["TriggerTime"]);
+			if(timestamp >= range_start) {
+				const min_of_day = ~~((timestamp - range_start)/utils.minutesInMs(1));
+
+				if(t["Filter"][0] === filter[0] && t["Filter"][1] === filter[1]) {
+					trigger_table[min_of_day] = t["Stations"];
+				}
+			}
+		}
+
+		return trigger_table;
+	}
+
 	//TODO: disable-a ui á meðan þetta er í gangi
 	async function fillPlots(range_start, range_end, stations) {
 		let load_container = document.getElementById("load_container");
@@ -214,7 +257,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			p.initBuffers(stations);
 			p.minute_offset = minute_of_end_date;
 
-			let station_names_in_result = Object.keys(result[i]["stations"])
+			let station_names_in_result = Object.keys(result[i]["stations"]);
 
 			//loop over selected stations
 			for(let j = 0; j < stations.length; j++) {
@@ -227,21 +270,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 			}
 
-			let trigger_table = null;
-
-			if(triggers) {
-				trigger_table = {};
-
-				for(const t of triggers) {
-					const timestamp = new Date(t["TriggerTime"]);
-					const min_of_day = ~~((timestamp - range_start)/utils.minutesInMs(1));
-
-					let f = tremv_config.filters[i];
-					if(t["Filter"][0] === f[0] && t["Filter"][1] === f[1]) {
-						trigger_table[min_of_day] = t["Stations"];
-					}
-				}
-			}
+			let trigger_table = prepareTriggers(triggers, tremv_config.filters[i], range_start);
 
 			//NOTE: þarf að vera trigger fyrir viðeigandi filter
 			p.draw(false, trigger_table);
@@ -301,47 +330,24 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 				}
 			}
 
-			for(const p of plots) {
+			let trigger_range_end = new Date(Date.now() - utils.minutesInMs(2));
+			let trigger_range_start = new Date(trigger_range_end - utils.daysInMs(1));
+			let triggers = catalog_checkbox.checked ? await getTriggers(trigger_range_start, trigger_range_end) : null;
+
+			for(let i = 0; i < plots.length; i++) {
+				let p = plots[i];
 				p.minute_offset += 1;
 
 				if(p.minute_offset >= 1440) {
 					p.minute_offset = 0;
 				}
 
-				p.draw();
+				let trigger_table = prepareTriggers(triggers, tremv_config.filters[i], trigger_range_start);
+				p.draw(false, trigger_table);
 			}
 
 			live_timeout_id = setTimeout(request, utils.msToNextMin());
 		}, utils.msToNextMin());
-	}
-
-	async function getTriggers(range_start, range_end) {
-		let json_query = {};
-
-		json_query["range_start"] = range_start.toJSON();
-		json_query["range_end"] = range_end.toJSON();
-
-		console.log("getting catalog from " + range_start + " to " + range_end);
-
-		const response = await fetch(base_url + "/api/catalog_range/",
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json;charset=utf-8'
-				},
-				body: JSON.stringify(json_query)
-			}
-		);
-
-		//TODO: error handling!!! HTTP status!!!
-		if(response.ok) {
-			const result = await response.json();
-			return result;
-		}else {
-			console.log("HTTP Error " + response.status + ": " + response.statusText);
-		}
-
-		return null;
 	}
 
 	function hideSidebar() {
@@ -478,6 +484,10 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			if(search_params.has("catalog")) {
 				search_params.delete("catalog");
 			}
+
+			for(const p of plots) {
+				p.cached_triggers = null;
+			}
 		}
 
 		utils.setURLParams(search_params);
@@ -561,6 +571,21 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}
 
 		updateDateLabel();
+	}
+
+	window.onresize = function(e) {
+		clearTimeout(resize_timeout_id);
+
+		for(const p of plots) {
+			p.draw(true);
+		}
+
+		//do a full redraw after a little delay
+		resize_timeout_id = setTimeout(function redraw() {
+			for(const p of plots) {
+				p.draw(false, p.cached_triggers);
+			}
+		}, 250);
 	}
 
 	//		*	listinn af stöðvum ætti að birtast fyrir ofan í staðinn fyrir neðan, því textbox elementið stækkar að neðan

@@ -41,6 +41,8 @@ export class Plot {
 		//so you can reference this object from within the event handlers.
 		let plot_object = this;
 
+		this.cached_triggers = null;
+
 		//TODO: disable this stuff until we have stuff to plot
 		this.view.onscroll = function(e) {
 			plot_object.draw(true);
@@ -104,7 +106,7 @@ export class Plot {
 
 	updateScaling(value, draw_cached=false) {
 		this.scaling_factor = value;
-		this.draw(draw_cached);
+		this.draw(draw_cached, this.cached_triggers);
 	}
 
 	addPoint(station_name, value) {
@@ -191,6 +193,7 @@ export class Plot {
 			utils.drawRect(back_context, 0, 0, width, height, "#FFFFFF");
 
 			if(triggers) {
+				this.cached_triggers = triggers;
 				for(let x = 0; x < width; x++) {
 					for(let i = 0; i < plot_count; i++) {
 						let name = this.selected_stations[i];
@@ -202,7 +205,7 @@ export class Plot {
 								let points = [[line_x, plot_y0], [line_x-3, plot_y0+5], [line_x+3, plot_y0+5]];
 								utils.drawFilledPolygon(back_context, points, 1, "#000000", "#FFFF00");
 								*/
-								let width = 6;
+								let width = 8;
 								let plot_y0 = trace_height * i;
 								utils.drawRect(back_context, line_x-(width/2), plot_y0, width, trace_height, "#FFEA8F");
 							}
