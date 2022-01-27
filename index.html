@@ -34,7 +34,7 @@
 			<fieldset class="control_section">
 				<legend>UI Controls</legend>
 				<p>
-					Trace Height
+					Trace Scaling
 				</p>
 				<input type="range" min="0.5" max="2.0" value="1.0" step="0.01" id="ui_plot_scaling_slider">
 				<!--
@@ -43,7 +43,7 @@
 				<input type="checkbox">
 				-->
 				<p>
-					<input type="button" id="ui_reset_button" value="Reset Slider">
+					<input type="button" id="ui_reset_button" value="Reset Scaling">
 				</p>
 			</fieldset>
 
@@ -71,10 +71,10 @@
 					</table>
 
 					<div id="station_selection_container">
-						<p>
+						<div id="selection_button_container">
 							<input type="button" value="Select all stations" id="station_selection_button_all">
 							<input type="button" value="Remove all stations" id="station_selection_button_none">
-						</p>
+						</div>
 
 						<div id="station_selection_selector">
 							<input id="station_selection_textbox" type="text" value="">
@@ -84,9 +84,13 @@
 						</div>
 					</div>
 
-					<p>
+					<div id="form_submit_container">
+						<div>
+							<input type="checkbox" id="catalog_checkbox">
+							<label for="catalog_checkbox">Catalog Events</label>
+						</div>
 						<input type="submit" id="controls_submit_button" value="Plot">
-					</p>
+					</div>
 				</fieldset>
 			</form>
 		</div>

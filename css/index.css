@@ -208,3 +208,22 @@ nice loading animation from https://loading.io/css/
 	max-width: 1440px;
 	overflow-x: scroll;
 }
+
+#selection_button_container {
+	display: flex;
+	column-gap: 0.5rem;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
+}
+
+#selection_button_container > * {
+	flex-grow: 1;
+}
+
+#form_submit_container {
+	display: flex;
+	flex-flow: column;
+	row-gap: 1rem;
+	margin-top: 0.8rem;
+	margin-bottom: 0.8rem;
+}

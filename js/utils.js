@@ -25,6 +25,10 @@ export function msToNextMin() {
 	return next_min_in_ms - now;
 }
 
+export function datesEqual(d0, d1) {
+	return (~~(d0.getTime() / daysInMs(1))) === (~~(d1.getTime() / daysInMs(1)));
+}
+
 export function copyToClipboard(str) {
 	if("clipboard" in navigator) {
 		navigator.clipboard.writeText(str);
@@ -110,7 +114,7 @@ export class RingBuffer {
 }
 
 //drawing functions
-export function drawLine(context, x0, y0, x1, y1, color, width) {
+export function drawLine(context, x0, y0, x1, y1, width, color) {
 	let prev_stroke_color = context.strokeStyle;
 	let prev_stroke_width = context.lineWidth;
 
@@ -130,6 +134,31 @@ export function drawRect(context, x, y, width, height, color) {
 	context.fillStyle = color;
 	context.fillRect(x, y, width, height);
 	context.fillStyle = prev_color;
+}
+
+export function drawFilledPolygon(context, points, stroke_width, stroke_color, fill_color) {
+	let prev_fill_color = context.fillStyle;
+	let prev_stroke_color = context.strokeStyle;
+	let prev_stroke_width = context.lineWidth;
+
+	context.fillStyle = fill_color;
+	context.strokeStyle = stroke_color;
+	context.lineWidth = stroke_width;
+
+	context.beginPath();
+	context.moveTo(points[0][0], points[0][1]);
+
+	for(let i = 1; i < points.length; i++) {
+		context.lineTo(points[i][0], points[i][1]);
+	}
+
+	context.closePath();
+	context.stroke();
+	context.fill();
+
+	context.fillStyle = prev_fill_color;
+	context.strokeStyle = prev_stroke_color;
+	context.lineWidth = prev_stroke_width;
 }
 
 export function drawText(context, text, x, y, font, size, color) {

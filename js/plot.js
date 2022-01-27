@@ -54,7 +54,7 @@ export class Plot {
 			plot_object.draw(true);
 			let context = plot_object.canvas.getContext("2d");
 			let x = e.layerX + 0.5;
-			utils.drawLine(context, x, 0, x, plot_object.canvas.height, "#000000", 1);
+			utils.drawLine(context, x, 0, x, plot_object.canvas.height, 1, "#000000");
 			let square_height = 25;
 			let square_width = 50;
 
@@ -115,16 +115,13 @@ export class Plot {
 
 	//TODO: 
 	//	*	Re-render if the page dimnesions change and stuff
-	//	*	Display time a line where the cursor is and show the time next to it
 	//	*	Express the width of the canvas as a ratio of the page size, so something like 70% or something
-	//	*	When we scroll, the text should follow. The plot could be written to a seperate buffer,
-	//		and then we could just write from it to the backbuffer and then draw the text...
 	//	*	Cut image from the left to the position of the scroll bar, so we don't get a scuffed image
 	//		when we open it in a new tab
 	//when station data is null, we just draw the image again
 
 	//make the trace offset thing a parameter
-	draw(draw_cached=false) {
+	draw(draw_cached=false, triggers=null) {
 		if(this.visibile == false) return;
 		//https://www.html5rocks.com/en/tutorials/canvas/hidpi/
 		//https://stackoverflow.com/questions/40066166/canvas-text-rendering-blurry
@@ -193,6 +190,27 @@ export class Plot {
 			
 			utils.drawRect(back_context, 0, 0, width, height, "#FFFFFF");
 
+			if(triggers) {
+				for(let x = 0; x < width; x++) {
+					for(let i = 0; i < plot_count; i++) {
+						let name = this.selected_stations[i];
+						let line_x = x + 0.5;
+
+						if(x in triggers) {
+							if(triggers[x].includes(name)) {
+								/*
+								let points = [[line_x, plot_y0], [line_x-3, plot_y0+5], [line_x+3, plot_y0+5]];
+								utils.drawFilledPolygon(back_context, points, 1, "#000000", "#FFFF00");
+								*/
+								let width = 6;
+								let plot_y0 = trace_height * i;
+								utils.drawRect(back_context, line_x-(width/2), plot_y0, width, trace_height, "#FFEA8F");
+							}
+						}
+					}
+				}
+			}
+
 			for(let x = 0; x < width; x++) {
 				if((x + this.minute_offset) % 60 == 0) {
 					//the ~ operator is a bitwise NOT(meaning all bits will be flipped).
@@ -218,9 +236,9 @@ export class Plot {
 				let grid_y1 = grid_height + 6;
 
 				if((x + this.minute_offset) % 30 == 0) {
-					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, "#AAAAAA", 1);
+					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, 1, "#AAAAAA");
 				}else if((x + this.minute_offset) % 10 == 0) {
-					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, "#CCEEFF", 1);
+					utils.drawLine(back_context, line_x, 0, line_x, grid_y1, 1, "#CCEEFF");
 				}
 
 				for(let i = 0; i < plot_count; i++) {
@@ -240,9 +258,7 @@ export class Plot {
 						let plot_y1 = plot_y0 - (value/clipped_max_global * trace_height*2);
 
 						let color = (i % 2 == 0) ? "#CC4444" : "#44CC44";
-						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, color, 1);
-						//TODO:	maybe it is possible to optimize this somehow by instead of drawing a white square over everything and then drawing
-						//		everything again, to just draw whats in the buffer offset by on pixel and then draw the next column???
+						utils.drawLine(back_context, line_x, plot_y0, line_x, plot_y1, 1, color);
 					}
 				}
 			}

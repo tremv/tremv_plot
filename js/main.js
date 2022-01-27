@@ -17,36 +17,147 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	const buffer_size = 1440;
 	const str_font = "Arial";
 	const str_size = 14;
+	let live_timeout_id = 0;
+	let date_container = null;
+	const plots = [];//heldur utan um plot hluti
+	const current_station_selection = [];//afrit af station_selection.selected_stations sem verður til þegar við ýtum á plot takkann
+
+	//TODO: error handling!!! HTTP status!!!
+	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
+		return r.json();
+	});
+
+	const station_selection_ui = new StationSelection(tremv_config.stations);
 
 	const plot_container = document.getElementById("plot_container");
 	const filter_selection = document.getElementById("filter_selection");
 	const ui_plot_scaling_slider = document.getElementById("ui_plot_scaling_slider");
 	ui_plot_scaling_slider.value = 1;
-	let live_timeout_id = 0;
 	let live_mode = document.getElementById("time_range_live").checked;
-
-	const plots = [];//heldur utan um plot hluti
 
 	//time range selection UI
 	const radio_button_live = document.getElementById("time_range_live");
 	const radio_button_past = document.getElementById("time_range_past");
 	const datepicker = document.getElementById("datepicker");
-	const yesterday = new Date(new Date().getTime() - utils.daysInMs(1));
+	const catalog_checkbox = document.getElementById("catalog_checkbox");
 
-	const max_year = yesterday.getFullYear().toString();
-	const max_month = yesterday.getMonth() + 1;
-	const max_day = yesterday.getDate();
-	let date_container = null;
+	//initialize plots
+	for(const f of tremv_config.filters) {
+		let plot = new Plot(buffer_size, plot_container, current_station_selection, f, str_font, str_size);
+		plot.draw();
+		plots.push(plot);
+	}
 
-	let max_date = max_year + "-";
+	const filter_checkbox_group_name = "filter_checkboxes";
+	let filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
 
-	if(max_month < 10) max_date += "0";
-	max_date += max_month + "-";
+	//initialize filter checkboxes
+	for(let i = 0; i < tremv_config.filters.length; i++) {
+		let p = document.createElement("p");
+		let cb = document.createElement("input");
+		let l = document.createElement("label");
 
-	if(max_day < 10) max_date += "0";
-	max_date += max_day;
+		let id = "filter_checkbox" + i;
+		cb.setAttribute("id", id);
+		cb.setAttribute("type", "checkbox");
+		cb.setAttribute("name", filter_checkbox_group_name);
+		cb.checked = true;
 
-	datepicker.max = max_date;
+		cb.onchange = function(e) {
+			plots[i].setVisibility(cb.checked);
+
+			updateDateLabel();
+
+			let search_params = utils.getURLParams();
+			let filter_state = "";
+
+			for(let j = 0; j < filter_checkboxes.length; j++) {
+				filter_state += filter_checkboxes[j].checked;
+				if(j !== filter_checkboxes.length-1) filter_state += ",";
+			}
+
+			search_params.set("filters", filter_state);
+			utils.setURLParams(search_params);
+		}
+
+		l.setAttribute("for", id);
+		l.innerHTML = (tremv_config.filters[i][0].toFixed(1)) + " - " + (tremv_config.filters[i][1].toFixed(1));
+
+		p.appendChild(cb);
+		p.appendChild(l);
+
+		filter_selection.appendChild(p);
+	}
+
+	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
+	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
+	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
+	//Backfill request
+
+	//show stations from the query string
+	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
+		let search_params = utils.getURLParams();
+
+		if(search_params.has("sidebar")) {
+			if(search_params.get("sidebar") == "false") {
+				hideSidebar();
+			}
+		}
+
+		if(search_params.has("stations")) {
+			let stations = decodeURI(search_params.get("stations")).split(",");
+
+			for(const s of stations) {
+				if(tremv_config.stations.includes(s)) {
+					station_selection_ui.addStation(s);
+					current_station_selection.push(s);
+				}
+			}
+
+			if(search_params.has("filters")) {
+				let filter_state = decodeURI(search_params.get("filters")).split(",");
+
+				for(let i = 0; i < filter_state.length; i++) {
+					if(filter_state[i] === "false") {
+						plots[i].setVisibility(false);
+						filter_checkboxes[i].checked = false;
+					}
+				}
+			}
+
+			if(search_params.has("catalog")) {
+				catalog_checkbox.checked = true;
+			}
+
+			if(search_params.has("date")) {
+				radio_button_past.checked = true;
+				clearTimeout(live_timeout_id);
+
+				//TODO: það er óþægilega mikið code duplication í gangi hérna
+				//TODO: kannski er þetta live_mode = og datepicker... óþarfi af því ég stilli checked fyrir ofan og þá ætti þetta að tigger-a eventinn?
+				datepicker.disabled = false;
+				live_mode = false;
+				let date = decodeURI(search_params.get("date"));
+				datepicker.value = date;
+
+				const range_start = new Date(date);
+				const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
+
+				//ef dagsetningin er dagurinn í dag byðjum við um backfill en update-um ekki
+				if(utils.datesEqual(range_start, new Date())) {
+					backfillPlots(current_station_selection);
+				}else {
+					fillPlots(range_start, range_end, current_station_selection);
+				}
+			}else {
+				backfillPlots(current_station_selection);
+				setLiveUpdate();
+			}
+		}
+
+		setDatepickerMax();
+		updateDateLabel();
+	}
 
 	//við erum bara að pæla að sækja range sem jafngildir einum degi, því plotting strúktúrinn bíður ekki upp á það eins og er
 	async function rangeRequest(range_start, range_end, stations) {
@@ -89,17 +200,19 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		let result = await rangeRequest(range_start, range_end, stations);
 		console.log(result);
 
+		let triggers = catalog_checkbox.checked ? await getTriggers(range_start, range_end) : null;
+
 		load_container.classList.remove("loading");
 		load_container.classList.add("done_loading");
 
 		//búa til offset þannig að tímalínan er á réttum stað
-		let minute_of_day = range_end.getHours() * 60 + range_end.getMinutes();
+		let minute_of_end_date = range_end.getHours() * 60 + range_end.getMinutes();
 
 		for(let i = 0; i < plots.length; i++) {
 			let p = plots[i];
 
 			p.initBuffers(stations);
-			p.minute_offset = minute_of_day;
+			p.minute_offset = minute_of_end_date;
 
 			let station_names_in_result = Object.keys(result[i]["stations"])
 
@@ -113,10 +226,25 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 					}
 				}
 			}
-		}
 
-		for(const p of plots) {
-			p.draw();
+			let trigger_table = null;
+
+			if(triggers) {
+				trigger_table = {};
+
+				for(const t of triggers) {
+					const timestamp = new Date(t["TriggerTime"]);
+					const min_of_day = ~~((timestamp - range_start)/utils.minutesInMs(1));
+
+					let f = tremv_config.filters[i];
+					if(t["Filter"][0] === f[0] && t["Filter"][1] === f[1]) {
+						trigger_table[min_of_day] = t["Stations"];
+					}
+				}
+			}
+
+			//NOTE: þarf að vera trigger fyrir viðeigandi filter
+			p.draw(false, trigger_table);
 			p.view.scrollLeft = buffer_size;
 		}
 
@@ -187,6 +315,35 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		}, utils.msToNextMin());
 	}
 
+	async function getTriggers(range_start, range_end) {
+		let json_query = {};
+
+		json_query["range_start"] = range_start.toJSON();
+		json_query["range_end"] = range_end.toJSON();
+
+		console.log("getting catalog from " + range_start + " to " + range_end);
+
+		const response = await fetch(base_url + "/api/catalog_range/",
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json;charset=utf-8'
+				},
+				body: JSON.stringify(json_query)
+			}
+		);
+
+		//TODO: error handling!!! HTTP status!!!
+		if(response.ok) {
+			const result = await response.json();
+			return result;
+		}else {
+			console.log("HTTP Error " + response.status + ": " + response.statusText);
+		}
+
+		return null;
+	}
+
 	function hideSidebar() {
 		document.getElementById("controls").style.display = "none";
 		document.getElementById("collapsed_controls").style.display = "block";
@@ -201,6 +358,23 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		let search_params = utils.getURLParams();
 		search_params.set("sidebar", true);
 		utils.setURLParams(search_params);
+	}
+
+	function setDatepickerMax() {
+		const today = new Date();
+		const max_year = today.getFullYear().toString();
+		const max_month = today.getMonth() + 1;
+		const max_day = today.getDate();
+
+		let max_date = max_year + "-";
+
+		if(max_month < 10) max_date += "0";
+		max_date += max_month + "-";
+
+		if(max_day < 10) max_date += "0";
+		max_date += max_day;
+
+		datepicker.max = max_date;
 	}
 
 	function updateDateLabel() {
@@ -224,6 +398,7 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			date_container.appendChild(live_icon);
 
 			timestamp = new Date();
+			setDatepickerMax();
 		}else {
 			timestamp = new Date(datepicker.value);
 		}
@@ -234,126 +409,6 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 		visible_plot.title.appendChild(date_container);
 	}
 
-	//INITIALIZATION BEGINS HERE
-
-	//TODO: error handling!!! HTTP status!!!
-	const tremv_config = await fetch(base_url + "/api/current_configuration/", {method: "GET"}).then(function(r) {
-		return r.json();
-	});
-
-	const station_selection_ui = new StationSelection(tremv_config.stations);
-	//NOTE: þurfum að hafa reference hér í listan því live update þarf hann
-	const current_station_selection = [];//afrit af station_selection.selected_stations sem verður til þegar við ýtum á plot takkann
-
-	//initialize plots
-	for(const f of tremv_config.filters) {
-		let plot = new Plot(buffer_size, plot_container, current_station_selection, f, str_font, str_size);
-		plot.draw();
-		plots.push(plot);
-	}
-
-	const filter_checkbox_group_name = "filter_checkboxes";
-
-	//initialize filter checkboxes
-	for(let i = 0; i < tremv_config.filters.length; i++) {
-		let p = document.createElement("p");
-		let cb = document.createElement("input");
-		let l = document.createElement("label");
-
-		let id = "filter_checkbox" + i;
-		cb.setAttribute("id", id);
-		cb.setAttribute("type", "checkbox");
-		cb.setAttribute("name", filter_checkbox_group_name);
-		cb.checked = true;
-
-		cb.onchange = function(e) {
-			plots[i].setVisibility(cb.checked);
-
-			updateDateLabel();
-
-			let search_params = utils.getURLParams();
-			let filter_state = "";
-
-			for(let j = 0; j < filter_checkboxes.length; j++) {
-				filter_state += filter_checkboxes[j].checked;
-				if(j !== filter_checkboxes.length-1) filter_state += ",";
-			}
-
-			search_params.set("filters", filter_state);
-			utils.setURLParams(search_params);
-		}
-
-		l.setAttribute("for", id);
-		l.innerHTML = (tremv_config.filters[i][0].toFixed(1)) + " - " + (tremv_config.filters[i][1].toFixed(1));
-
-		p.appendChild(cb);
-		p.appendChild(l);
-
-		filter_selection.appendChild(p);
-	}
-
-	let filter_checkboxes = document.getElementsByName(filter_checkbox_group_name);
-
-	//Þegar við sækjum gögn gæti verið að loggerinn sé að vinna í gögnunum.
-	//Einhverstaðar á milli t og t+1 klárar loggerinn að vinna gögn fyrir t-1 til t og þá er mín t-1 tilbúin.
-	//Eina loforðið sem við gefum er að mín t-1 er tilbúin á á t+1 því annars þyrftum við einhvernveginn að láta vita hvenær útreikningarnir eru búnir.
-	//Backfill request
-
-	//TODO: ef við með date="isodate" í query param ættum við að fara að skoða ákveðna dagsetningu
-	//show stations from the query string
-	if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
-		let search_params = utils.getURLParams();
-
-		if(search_params.has("sidebar")) {
-			if(search_params.get("sidebar") == "false") {
-				hideSidebar();
-			}
-		}
-
-		if(search_params.has("stations")) {
-			let stations = decodeURI(search_params.get("stations")).split(",");
-
-			for(const s of stations) {
-				if(tremv_config.stations.includes(s)) {
-					station_selection_ui.addStation(s);
-					current_station_selection.push(s);
-				}
-			}
-
-			if(search_params.has("filters")) {
-				let filter_state = decodeURI(search_params.get("filters")).split(",");
-
-				for(let i = 0; i < filter_state.length; i++) {
-					if(filter_state[i] === "false") {
-						plots[i].setVisibility(false);
-						filter_checkboxes[i].checked = false;
-					}
-				}
-			}
-
-			if(search_params.has("date")) {
-				radio_button_past.checked = true;
-				clearTimeout(live_timeout_id);
-
-				//TODO: það er óþægilega mikið code duplication í gangi hérna
-				//TODO: kannski er þetta live_mode = og datepicker... óþarfi af því ég stilli checked fyrir ofan og þá ætti þetta að tigger-a eventinn?
-				datepicker.disabled = false;
-				live_mode = false;
-				let date = decodeURI(search_params.get("date"));
-				datepicker.value = date;
-
-				const range_start = new Date(date);
-				const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
-
-				fillPlots(range_start, range_end, current_station_selection);
-			}else {
-				backfillPlots(current_station_selection);
-				setLiveUpdate();
-			}
-		}
-
-		updateDateLabel();
-	}
 
 	//UI Controls
 	document.getElementById("hide_button").onclick = function(e) {
@@ -412,6 +467,20 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 	radio_button_past.onchange = function(e) {
 		datepicker.disabled = false;
 		live_mode = false;
+	}
+
+	catalog_checkbox.onchange = function(e) {
+		let search_params = utils.getURLParams();
+
+		if(catalog_checkbox.checked) {
+			search_params.set("catalog", true);
+		}else {
+			if(search_params.has("catalog")) {
+				search_params.delete("catalog");
+			}
+		}
+
+		utils.setURLParams(search_params);
 	}
 
 	//það sem ætti eiginlega að gerast hér er að við ættum að varðveita listann sem notandinn var með á meðan onblur er ekki búið að ske,
@@ -481,24 +550,19 @@ function updatePlotScaling(plots, value, draw_cached=false) {
 			clearTimeout(live_timeout_id);
 
 			const range_start = new Date(datepicker.value);
-			//TODO: athuga hvort að það breyti einhverju að minnka range_end(serverinn sækir alltaf tvo daga...)
 			const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
 
-			fillPlots(range_start, range_end, current_station_selection);
+			//ef dagsetningin er dagurinn í dag byðjum við um backfill en update-um ekki
+			if(utils.datesEqual(range_start, new Date())) {
+				backfillPlots(current_station_selection);
+			}else {
+				fillPlots(range_start, range_end, current_station_selection);
+			}
 		}
 
 		updateDateLabel();
 	}
 
-	//TODO: muna að disable-a UI-ið á meðan það er verið að bíða eftir response...
-
-	//TODO: date_labelið ætti að vera breytanlegt og ættið að fara í plot_title divið(gera fall setDate sem býr til elementið ef það er ekki til, stillir það alltaf)
-
-	//TODO: þarf ekki einhver icon eða eitthvað sem segir að við séum að bíða eftir einhverju?
-
-	//		*	Fyrir fastan link gæti ég bara haft "lista" af key value sem er f=True,False,True.... og gefur til kynna hvaða filter-ar eru valdir
 	//		*	listinn af stöðvum ætti að birtast fyrir ofan í staðinn fyrir neðan, því textbox elementið stækkar að neðan
 	//		*	Laga tíma pop up-ið þannig að það klippist ekki af því frá hægri ef maður er ekki scroll-aður alla leið
-	//
-
 })();
