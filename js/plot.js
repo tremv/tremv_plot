@@ -60,9 +60,14 @@ export class Plot {
 			let square_height = 25;
 			let square_width = 50;
 
-			if(e.clientX + square_width > e.target.getBoundingClientRect().right) {
-				x -= e.clientX + square_width - e.target.getBoundingClientRect().right;
+			let scroll_max = plot_object.view.scrollWidth - plot_object.view.clientWidth;
+			let right_boundary = e.target.getBoundingClientRect().right - (scroll_max - plot_object.view.scrollLeft);
+
+			if(e.clientX + square_width > right_boundary) {
+				x -= e.clientX + square_width - right_boundary;
 			}
+
+			console.log(plot_object.view.scrollLeft);
 
 			utils.drawRect(context, x, e.layerY-square_height, square_width, square_height, "#FFFA64");
 
