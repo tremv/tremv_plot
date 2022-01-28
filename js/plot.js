@@ -67,8 +67,6 @@ export class Plot {
 				x -= e.clientX + square_width - right_boundary;
 			}
 
-			console.log(plot_object.view.scrollLeft);
-
 			utils.drawRect(context, x, e.layerY-square_height, square_width, square_height, "#FFFA64");
 
 			let min_of_day = e.layerX + plot_object.minute_offset;
