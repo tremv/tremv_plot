@@ -113,6 +113,22 @@ export class RingBuffer {
 	}
 }
 
+//TODO: this doesn't work
+//gets a hidpi context if needed
+export function getContext(canvas) {
+	let dpr = 1;
+	if("devicePixelRatio" in window) dpr = window.devicePixelRatio;
+	let rect = canvas.getBoundingClientRect();
+	console.log(rect);
+
+	canvas.width = rect.width * dpr;
+	canvas.height = rect.height * dpr;
+
+	let context = canvas.getContext("2d");
+	context.scale(dpr, dpr);
+	return context;
+}
+
 //drawing functions
 export function drawLine(context, x0, y0, x1, y1, width, color) {
 	let prev_stroke_color = context.strokeStyle;
