@@ -173,13 +173,14 @@ export class Plot {
 			//Hins vegar þurfum við bara að vita stærsta clipped max globally af því allt er skalað með því gildi.
 			let min_per_station = {};
 			let clipped_max_global = -Number.MAX_SAFE_INTEGER;
+			let epsilon = 0.1;
 
 			for(const s of this.selected_stations) {
 				min_per_station[s] = Number.MAX_SAFE_INTEGER;
 				let max_station = -Number.MAX_SAFE_INTEGER;
 
 				for(const v of this.data[s].data) {
-					if(v > 0.0) {
+					if(v > epsilon) {
 						if(v < min_per_station[s]) min_per_station[s] = v;
 					}
 
@@ -257,9 +258,9 @@ export class Plot {
 						console.log("afhverju :(");
 					}
 
-					if(value > 0) {
-						value -= min_per_station[name];
+					value -= min_per_station[name];
 
+					if(value > 0) {
 						let plot_y0 = trace_height * i + trace_height;
 						let plot_y1 = plot_y0 - (value/clipped_max_global * trace_height*2);
 
