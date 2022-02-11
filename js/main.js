@@ -135,7 +135,9 @@ import {Plot} from "./plot.js";
 				datepicker.value = date;
 
 				const range_start = new Date(date);
-				const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
+				const range_end = new Date(range_start.getTime() + utils.daysInMs(1) - 1);
+				console.log("start: " + range_start);
+				console.log("end: " + range_end);
 
 				//ef dagsetningin er dagurinn í dag byðjum við um backfill en update-um ekki
 				if(utils.datesEqual(range_start, new Date())) {
@@ -283,7 +285,7 @@ import {Plot} from "./plot.js";
 	async function backfillPlots(stations) {
 		const two_min = utils.minutesInMs(2);
 		const range_end = new Date(Date.now() - two_min);
-		const range_start = new Date(range_end - utils.daysInMs(1));
+		const range_start = new Date(range_end - utils.daysInMs(1) - 1);
 
 		fillPlots(range_start, range_end, stations);
 	}
@@ -292,7 +294,7 @@ import {Plot} from "./plot.js";
 		clearTimeout(live_timeout_id);
 
 		live_timeout_id = setTimeout(async function request() {
-			console.log("updating plot");
+			//console.log("updating plot");
 			updateDateLabel();
 
 			let json_query = {};
@@ -541,7 +543,7 @@ import {Plot} from "./plot.js";
 			current_station_selection.push(s);
 		}
 
-		console.log(current_station_selection);
+		//console.log(current_station_selection);
 
 		//add query string for selected stations
 		if("URLSearchParams" in window) {//I guess this makes it backwards compfewjfiowejfoiæewjf
@@ -560,7 +562,7 @@ import {Plot} from "./plot.js";
 			clearTimeout(live_timeout_id);
 
 			const range_start = new Date(datepicker.value);
-			const range_end = new Date(range_start.getTime() + utils.daysInMs(1));
+			const range_end = new Date(range_start.getTime() + utils.daysInMs(1) - 1);
 
 			//ef dagsetningin er dagurinn í dag byðjum við um backfill en update-um ekki
 			if(utils.datesEqual(range_start, new Date())) {

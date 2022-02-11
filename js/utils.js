@@ -113,6 +113,7 @@ export class RingBuffer {
 	}
 }
 
+//TODO: this doesn't work
 //gets a hidpi context if needed
 export function getContext(canvas) {
 	let dpr = 1;
