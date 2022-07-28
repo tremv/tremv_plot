@@ -176,7 +176,6 @@ export class Plot {
 			//TODO: efast um að þetta sé fullnægjandi fyrir allar dreifingar. 
 			//		Það sem þyrfti að gera væri að skoða einhver outlier gildi og hafna þeim sem min gildi ef þau eru óeðlilega lág.
 			let epsilon = 0.01;
->>>>>>> 87b5aeecd7abb45917b5524a624d5f5857b591a5
 
 			for(const s of this.selected_stations) {
 				min_per_station[s] = Number.MAX_SAFE_INTEGER;
